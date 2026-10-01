@@ -9,7 +9,8 @@
     "demo": "tsx src/demo/core-demo.ts",
     "tool": "tsx src/tool/server.ts",
     "pin-tool": "tsx src/admin/pin-market-tool.ts",
-    "demo-http": "tsx src/demo/http-tool-demo.ts"
+    "demo-http": "tsx src/demo/http-tool-demo.ts",
+    "agent": "tsx src/agent/runner.ts"
   },
   "keywords": [],
   "author": "",
