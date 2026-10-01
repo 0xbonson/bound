@@ -16,7 +16,9 @@
     "vendor-create": "tsx src/admin/create-vendor-wallet.ts",
     "native-tool": "tsx src/tool/native-server.ts",
     "pin-native-tool": "tsx src/admin/pin-native-tool.ts",
-    "native-agent": "tsx src/agent/native-runner.ts"
+    "native-agent": "tsx src/agent/native-runner.ts",
+    "user-wallet-create": "tsx src/admin/create-user-wallet.ts",
+    "authorization-sign": "tsx src/admin/sign-native-authorization.ts"
   },
   "keywords": [],
   "author": "",
