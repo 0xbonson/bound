@@ -7,10 +7,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  generatePrivateKey,
+  privateKeyToAccount,
+} from "viem/accounts";
+
+import {
   type NativeAuthorization,
   type NativeEvidence,
   signNativeEvidence,
 } from "../src/core/native.js";
+
+import {
+  signNativeAuthorization,
+} from "../src/core/native-authorization.js";
 
 import {
   guardAndExecuteNative,
@@ -18,7 +27,7 @@ import {
 
 /*
  * =======================================================
- * TEST STORE
+ * TEST REPLAY STORE
  * =======================================================
  */
 
@@ -58,19 +67,48 @@ const RECIPIENT_A =
 const RECIPIENT_B =
   "0x2222222222222222222222222222222222222222";
 
+const SOURCE_ID =
+  "native-signer-test-tool";
+
 const now =
   Date.now();
 
+/*
+ * -------------------------------------------------------
+ * USER AUTHORIZATION IDENTITY
+ * -------------------------------------------------------
+ */
+
+const TRUSTED_USER_PRIVATE_KEY =
+  generatePrivateKey();
+
+const TRUSTED_USER_ACCOUNT =
+  privateKeyToAccount(
+    TRUSTED_USER_PRIVATE_KEY
+  );
+
+const ATTACKER_USER_PRIVATE_KEY =
+  generatePrivateKey();
+
+/*
+ * -------------------------------------------------------
+ * TOOL ED25519 IDENTITY
+ * -------------------------------------------------------
+ */
+
 const {
-  privateKey,
-  publicKey,
+  privateKey:
+    toolPrivateKey,
+
+  publicKey:
+    toolPublicKey,
 } =
   generateKeyPairSync(
     "ed25519"
   );
 
-const PRIVATE_KEY_PEM =
-  privateKey
+const TOOL_PRIVATE_KEY_PEM =
+  toolPrivateKey
     .export({
       format:
         "pem",
@@ -80,8 +118,8 @@ const PRIVATE_KEY_PEM =
     })
     .toString();
 
-const PUBLIC_KEY_PEM =
-  publicKey
+const TOOL_PUBLIC_KEY_PEM =
+  toolPublicKey
     .export({
       format:
         "pem",
@@ -91,13 +129,22 @@ const PUBLIC_KEY_PEM =
     })
     .toString();
 
-const SOURCE_ID =
-  "native-signer-test-tool";
+const trustedSources = {
+  [SOURCE_ID]:
+    TOOL_PUBLIC_KEY_PEM,
+};
 
-const authorization:
-  NativeAuthorization = {
+/*
+ * =======================================================
+ * USER AUTHORIZATION
+ * =======================================================
+ */
+
+function createAuthorization():
+NativeAuthorization {
+  return {
     authorizationId:
-      "signer-auth-001",
+      "guarded-signer-auth-001",
 
     resourceId:
       "bnb-market-report",
@@ -124,6 +171,26 @@ const authorization:
       now +
       10 * 60 * 1000,
   };
+}
+
+async function createSignedAuthorization(
+  privateKey:
+    `0x${string}` =
+      TRUSTED_USER_PRIVATE_KEY
+) {
+  return signNativeAuthorization({
+    authorization:
+      createAuthorization(),
+
+    privateKey,
+  });
+}
+
+/*
+ * =======================================================
+ * TOOL EVIDENCE
+ * =======================================================
+ */
 
 function createEvidence():
 NativeEvidence {
@@ -153,7 +220,7 @@ NativeEvidence {
       "1000000000000000",
 
     nonce:
-      "guarded-signer-test",
+      "guarded-signer-evidence-001",
 
     issuedAt:
       now,
@@ -164,35 +231,36 @@ NativeEvidence {
   };
 }
 
-function createEnvelope() {
+function createEvidenceEnvelope() {
   return signNativeEvidence(
     createEvidence(),
-    PRIVATE_KEY_PEM
+    TOOL_PRIVATE_KEY_PEM
   );
 }
 
-const trustedSources = {
-  [SOURCE_ID]:
-    PUBLIC_KEY_PEM,
-};
-
 /*
  * =======================================================
- * TEST: VALID TRANSACTION EXECUTES
+ * VALID USER + VALID TRANSACTION
  * =======================================================
  */
 
 test(
-  "guarded signer executes only after native verification allows",
+  "guarded signer executes only after signed user authorization and transaction verification succeed",
   async () => {
+    const signedAuthorization =
+      await createSignedAuthorization();
+
     let executionCount = 0;
 
     const result =
       await guardAndExecuteNative({
-        authorization,
+        signedAuthorization,
+
+        expectedAuthorizationSigner:
+          TRUSTED_USER_ACCOUNT.address,
 
         envelope:
-          createEnvelope(),
+          createEvidenceEnvelope(),
 
         trustedSources,
 
@@ -243,6 +311,12 @@ test(
     );
 
     assert.equal(
+      result.authorizationVerification
+        .valid,
+      true
+    );
+
+    assert.equal(
       result.gate.decision,
       "ALLOW"
     );
@@ -251,21 +325,208 @@ test(
 
 /*
  * =======================================================
- * TEST: POISONED RECIPIENT NEVER EXECUTES
+ * TAMPERED USER AUTHORIZATION
+ * =======================================================
+ */
+
+test(
+  "guarded signer never executes authorization mutated after user signing",
+  async () => {
+    const signedAuthorization =
+      await createSignedAuthorization();
+
+    const tamperedAuthorization = {
+      ...signedAuthorization,
+
+      authorization: {
+        ...signedAuthorization
+          .authorization,
+
+        /*
+         * Attacker increases user limit.
+         */
+        maxAmountWei:
+          "500000000000000000",
+      },
+    };
+
+    let executionCount = 0;
+
+    const result =
+      await guardAndExecuteNative({
+        signedAuthorization:
+          tamperedAuthorization,
+
+        expectedAuthorizationSigner:
+          TRUSTED_USER_ACCOUNT.address,
+
+        envelope:
+          createEvidenceEnvelope(),
+
+        trustedSources,
+
+        transaction: {
+          chainId:
+            97,
+
+          to:
+            RECIPIENT_A,
+
+          valueWei:
+            "1000000000000000",
+
+          data:
+            "0x",
+        },
+
+        store:
+          new TestEvidenceUseStore(),
+
+        now:
+          now + 1_000,
+
+        execute:
+          async () => {
+            executionCount += 1;
+
+            return {
+              impossible:
+                true,
+            };
+          },
+      });
+
+    assert.equal(
+      result.status,
+      "BLOCKED"
+    );
+
+    assert.equal(
+      result.executed,
+      false
+    );
+
+    assert.equal(
+      executionCount,
+      0
+    );
+
+    assert.equal(
+      result.verification
+        .findings[0]
+        ?.code,
+      "INVALID_AUTHORIZATION_SIGNATURE"
+    );
+  }
+);
+
+/*
+ * =======================================================
+ * ATTACKER SELF-AUTHORIZATION
+ * =======================================================
+ */
+
+test(
+  "guarded signer never executes authorization signed by an untrusted user wallet",
+  async () => {
+    const attackerAuthorization =
+      await createSignedAuthorization(
+        ATTACKER_USER_PRIVATE_KEY
+      );
+
+    let executionCount = 0;
+
+    const result =
+      await guardAndExecuteNative({
+        signedAuthorization:
+          attackerAuthorization,
+
+        expectedAuthorizationSigner:
+          TRUSTED_USER_ACCOUNT.address,
+
+        envelope:
+          createEvidenceEnvelope(),
+
+        trustedSources,
+
+        transaction: {
+          chainId:
+            97,
+
+          to:
+            RECIPIENT_A,
+
+          valueWei:
+            "1000000000000000",
+
+          data:
+            "0x",
+        },
+
+        store:
+          new TestEvidenceUseStore(),
+
+        now:
+          now + 1_000,
+
+        execute:
+          async () => {
+            executionCount += 1;
+
+            return {
+              impossible:
+                true,
+            };
+          },
+      });
+
+    assert.equal(
+      result.status,
+      "BLOCKED"
+    );
+
+    assert.equal(
+      result.executed,
+      false
+    );
+
+    assert.equal(
+      executionCount,
+      0
+    );
+
+    assert.equal(
+      result.verification
+        .findings[0]
+        ?.code,
+      "UNAUTHORIZED_AUTHORIZATION_SIGNER"
+    );
+  }
+);
+
+/*
+ * =======================================================
+ * POISONED RECIPIENT
  * =======================================================
  */
 
 test(
   "guarded signer never calls executor for poisoned recipient",
   async () => {
+    const signedAuthorization =
+      await createSignedAuthorization();
+
     let executionCount = 0;
 
     const result =
       await guardAndExecuteNative({
-        authorization,
+        signedAuthorization,
+
+        expectedAuthorizationSigner:
+          TRUSTED_USER_ACCOUNT.address,
 
         envelope:
-          createEnvelope(),
+          createEvidenceEnvelope(),
 
         trustedSources,
 
@@ -294,8 +555,8 @@ test(
             executionCount += 1;
 
             return {
-              simulatedHash:
-                "SHOULD_NOT_EXIST",
+              impossible:
+                true,
             };
           },
       });
@@ -332,18 +593,21 @@ test(
 
 /*
  * =======================================================
- * TEST: REPLAY NEVER EXECUTES TWICE
+ * REPLAY
  * =======================================================
  */
 
 test(
-  "guarded signer executes evidence at most once",
+  "guarded signer executes one signed evidence at most once",
   async () => {
+    const signedAuthorization =
+      await createSignedAuthorization();
+
+    const evidenceEnvelope =
+      createEvidenceEnvelope();
+
     const store =
       new TestEvidenceUseStore();
-
-    const envelope =
-      createEnvelope();
 
     let executionCount = 0;
 
@@ -363,9 +627,13 @@ test(
 
     const first =
       await guardAndExecuteNative({
-        authorization,
+        signedAuthorization,
 
-        envelope,
+        expectedAuthorizationSigner:
+          TRUSTED_USER_ACCOUNT.address,
+
+        envelope:
+          evidenceEnvelope,
 
         trustedSources,
 
@@ -389,9 +657,13 @@ test(
 
     const second =
       await guardAndExecuteNative({
-        authorization,
+        signedAuthorization,
 
-        envelope,
+        expectedAuthorizationSigner:
+          TRUSTED_USER_ACCOUNT.address,
+
+        envelope:
+          evidenceEnvelope,
 
         trustedSources,
 

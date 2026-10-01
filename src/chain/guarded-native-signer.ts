@@ -24,11 +24,14 @@ import {
 } from "../core/bound.js";
 
 import {
-  type NativeAuthorization,
   type NativeEvidenceEnvelope,
   type RawNativeTransaction,
   verifyRawNativeTransfer,
 } from "../core/native.js";
+
+import {
+  verifySignedNativeAuthorization,
+} from "../core/native-authorization.js";
 
 import {
   FileEvidenceUseStore,
@@ -49,11 +52,10 @@ const DEFAULT_RPC_URL =
   "https://data-seed-prebsc-1-s1.bnbchain.org:8545/";
 
 /*
- * Structural interface only.
+ * Structural store interface.
  *
- * This lets tests provide an isolated
- * in-memory implementation without
- * touching .bound/evidence-used.
+ * Tests can inject an in-memory store
+ * without touching .bound/evidence-used.
  */
 export type EvidenceUseStoreLike = {
   claim(
@@ -64,24 +66,35 @@ export type EvidenceUseStoreLike = {
 
 /*
  * =======================================================
- * GENERIC GUARDED EXECUTION
+ * GUARDED EXECUTION
  * =======================================================
  *
- * Critical invariant:
+ * SECURITY ORDER:
  *
- * The exact transaction passed to execute()
- * is the same transaction verified inside
- * this function.
+ * signed user authorization
+ *        ↓
+ * verify trusted user signer
+ *        ↓
+ * verify signed tool evidence
+ *        ↓
+ * verify exact transaction
+ *        ↓
+ * replay-safe signing gate
+ *        ↓
+ * execute()
  *
- * Caller cannot provide a detached ALLOW
- * result for some other transaction.
+ * execute() must never run before all
+ * previous checks succeed.
  */
 
 export async function guardAndExecuteNative<
   T
 >(input: {
-  authorization:
-    NativeAuthorization;
+  signedAuthorization:
+    unknown;
+
+  expectedAuthorizationSigner:
+    string;
 
   envelope:
     NativeEvidenceEnvelope;
@@ -103,47 +116,97 @@ export async function guardAndExecuteNative<
 
   now?:
     number;
-}): Promise<
-  | {
-      status:
-        "BLOCKED";
-
-      verification:
-        VerificationResult;
-
-      gate:
-        VerificationResult;
-
-      executed:
-        false;
-    }
-  | {
-      status:
-        "EXECUTED";
-
-      verification:
-        VerificationResult;
-
-      gate:
-        VerificationResult;
-
-      executed:
-        true;
-
-      result:
-        T;
-    }
-> {
+}) {
   /*
-   * Re-verify INSIDE the signer boundary.
+   * ---------------------------------------------------
+   * VERIFY USER EIP-712 AUTHORIZATION
+   * ---------------------------------------------------
    *
-   * Never accept a caller-provided
-   * "ALLOW" as authority.
+   * The signer address embedded in the
+   * authorization envelope is NOT trusted
+   * by itself.
+   *
+   * It must match an independently
+   * configured expected signer.
+   */
+  const authorizationVerification =
+    await verifySignedNativeAuthorization({
+      envelope:
+        input.signedAuthorization,
+
+      expectedSigner:
+        input.expectedAuthorizationSigner,
+    });
+
+  /*
+   * Fail before transaction verification
+   * or private-key access if user mandate
+   * authentication fails.
+   */
+  if (
+    !authorizationVerification.valid
+  ) {
+    const verification:
+      VerificationResult = {
+        decision:
+          "BLOCK",
+
+        findings: [
+          {
+            code:
+              authorizationVerification.code,
+
+            message:
+              authorizationVerification.message,
+          },
+        ],
+      };
+
+    /*
+     * gateSigning returns a non-ALLOW
+     * verification unchanged and does not
+     * consume replay state.
+     */
+    const gate =
+      await gateSigning({
+        verification,
+
+        store:
+          input.store ??
+          new FileEvidenceUseStore(),
+      });
+
+    return {
+      status:
+        "BLOCKED" as const,
+
+      executed:
+        false as const,
+
+      authorizationVerification,
+
+      verification,
+
+      gate,
+    };
+  }
+
+  /*
+   * ---------------------------------------------------
+   * VERIFY EXACT TRANSACTION
+   * ---------------------------------------------------
+   *
+   * Authorization comes only from the
+   * successfully verified EIP-712 envelope.
+   *
+   * Caller does not provide a separate
+   * trusted authorization object.
    */
   const verification =
     verifyRawNativeTransfer({
       authorization:
-        input.authorization,
+        authorizationVerification
+          .authorization,
 
       envelope:
         input.envelope,
@@ -164,9 +227,11 @@ export async function guardAndExecuteNative<
     new FileEvidenceUseStore();
 
   /*
-   * Atomic replay claim happens
-   * immediately before execution.
+   * ---------------------------------------------------
+   * REPLAY-SAFE SIGNING GATE
+   * ---------------------------------------------------
    */
+
   const gate =
     await gateSigning({
       verification,
@@ -180,20 +245,26 @@ export async function guardAndExecuteNative<
   ) {
     return {
       status:
-        "BLOCKED",
+        "BLOCKED" as const,
+
+      executed:
+        false as const,
+
+      authorizationVerification,
 
       verification,
 
       gate,
-
-      executed:
-        false,
     };
   }
 
   /*
-   * Nothing capable of signing should
-   * happen before this point.
+   * ---------------------------------------------------
+   * EXECUTION
+   * ---------------------------------------------------
+   *
+   * This is the FIRST point where code
+   * capable of signing may be reached.
    */
   const result =
     await input.execute(
@@ -202,14 +273,16 @@ export async function guardAndExecuteNative<
 
   return {
     status:
-      "EXECUTED",
+      "EXECUTED" as const,
+
+    executed:
+      true as const,
+
+    authorizationVerification,
 
     verification,
 
     gate,
-
-    executed:
-      true,
 
     result,
   };
@@ -217,7 +290,7 @@ export async function guardAndExecuteNative<
 
 /*
  * =======================================================
- * PRIVATE KEY LOADER
+ * AGENT PRIVATE KEY LOADER
  * =======================================================
  */
 
@@ -246,29 +319,36 @@ Promise<`0x${string}`> {
 
 /*
  * =======================================================
- * REAL BSC TESTNET BROADCAST
+ * REAL BSC TESTNET EXECUTION
  * =======================================================
  *
- * IMPORTANT:
+ * The private key is intentionally loaded
+ * only inside execute().
  *
- * Private key is loaded ONLY from inside
- * execute(), meaning:
+ * Therefore:
  *
- * verification
- *      ↓
- * signing gate
- *      ↓
- * ALLOW
- *      ↓
- * private key load
- *      ↓
- * send transaction
+ * invalid user authorization
+ *          ↓
+ * blocked
+ *          ↓
+ * private key is never read
+ *
+ * OR
+ *
+ * provenance mismatch
+ *          ↓
+ * blocked
+ *          ↓
+ * private key is never read
  */
 
 export async function broadcastGuardedNativeTransfer(
   input: {
-    authorization:
-      NativeAuthorization;
+    signedAuthorization:
+      unknown;
+
+    expectedAuthorizationSigner:
+      string;
 
     envelope:
       NativeEvidenceEnvelope;
@@ -287,8 +367,11 @@ export async function broadcastGuardedNativeTransfer(
   }
 ) {
   return guardAndExecuteNative({
-    authorization:
-      input.authorization,
+    signedAuthorization:
+      input.signedAuthorization,
+
+    expectedAuthorizationSigner:
+      input.expectedAuthorizationSigner,
 
     envelope:
       input.envelope,
@@ -307,14 +390,9 @@ export async function broadcastGuardedNativeTransfer(
         transaction
       ) => {
         /*
-         * -------------------------------------------------
-         * EXACT TRANSACTION SAFETY CHECKS
-         * -------------------------------------------------
-         *
-         * These are defensive duplicates.
-         *
-         * The BOUND verifier already checks them,
-         * but the signer must also fail closed.
+         * -----------------------------------------------
+         * DEFENSIVE SIGNER CHECKS
+         * -----------------------------------------------
          */
 
         if (
@@ -354,9 +432,9 @@ export async function broadcastGuardedNativeTransfer(
           );
 
         /*
-         * -------------------------------------------------
-         * ONLY NOW READ PRIVATE KEY
-         * -------------------------------------------------
+         * -----------------------------------------------
+         * ONLY NOW LOAD SIGNING KEY
+         * -----------------------------------------------
          */
 
         const privateKey =
@@ -396,9 +474,9 @@ export async function broadcastGuardedNativeTransfer(
           });
 
         /*
-         * -------------------------------------------------
-         * VERIFY RPC CHAIN
-         * -------------------------------------------------
+         * -----------------------------------------------
+         * RPC CHAIN CHECK
+         * -----------------------------------------------
          */
 
         const rpcChainId =
@@ -415,9 +493,9 @@ export async function broadcastGuardedNativeTransfer(
         }
 
         /*
-         * -------------------------------------------------
+         * -----------------------------------------------
          * PREFLIGHT
-         * -------------------------------------------------
+         * -----------------------------------------------
          */
 
         const [
@@ -457,11 +535,6 @@ export async function broadcastGuardedNativeTransfer(
                 "0x",
             });
 
-        /*
-         * Conservative balance preflight.
-         *
-         * Actual gas cost may differ slightly.
-         */
         const estimatedGasCost =
           gasEstimate *
           gasPrice;
@@ -493,9 +566,9 @@ export async function broadcastGuardedNativeTransfer(
         }
 
         /*
-         * -------------------------------------------------
+         * -----------------------------------------------
          * REAL SIGN + BROADCAST
-         * -------------------------------------------------
+         * -----------------------------------------------
          */
 
         const hash =
@@ -513,7 +586,7 @@ export async function broadcastGuardedNativeTransfer(
             });
 
         /*
-         * Wait for actual chain inclusion.
+         * Wait until chain inclusion.
          */
         const receipt =
           await publicClient
