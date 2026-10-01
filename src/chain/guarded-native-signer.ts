@@ -52,11 +52,11 @@ const DEFAULT_RPC_URL =
   "https://data-seed-prebsc-1-s1.bnbchain.org:8545/";
 
 /*
- * Structural store interface.
- *
- * Tests can inject an in-memory store
- * without touching .bound/evidence-used.
+ * =======================================================
+ * REPLAY STORE INTERFACE
+ * =======================================================
  */
+
 export type EvidenceUseStoreLike = {
   claim(
     evidenceId:
@@ -69,22 +69,22 @@ export type EvidenceUseStoreLike = {
  * GUARDED EXECUTION
  * =======================================================
  *
- * SECURITY ORDER:
+ * Security boundary:
  *
- * signed user authorization
+ * EIP-712 user authorization
  *        ↓
- * verify trusted user signer
+ * exact user signer verification
  *        ↓
- * verify signed tool evidence
+ * signed tool evidence verification
  *        ↓
- * verify exact transaction
+ * exact proposed transaction verification
  *        ↓
  * replay-safe signing gate
  *        ↓
- * execute()
+ * executor
  *
- * execute() must never run before all
- * previous checks succeed.
+ * The executor must never run before all
+ * checks above succeed.
  */
 
 export async function guardAndExecuteNative<
@@ -119,16 +119,10 @@ export async function guardAndExecuteNative<
 }) {
   /*
    * ---------------------------------------------------
-   * VERIFY USER EIP-712 AUTHORIZATION
+   * VERIFY USER AUTHORIZATION
    * ---------------------------------------------------
-   *
-   * The signer address embedded in the
-   * authorization envelope is NOT trusted
-   * by itself.
-   *
-   * It must match an independently
-   * configured expected signer.
    */
+
   const authorizationVerification =
     await verifySignedNativeAuthorization({
       envelope:
@@ -138,11 +132,6 @@ export async function guardAndExecuteNative<
         input.expectedAuthorizationSigner,
     });
 
-  /*
-   * Fail before transaction verification
-   * or private-key access if user mandate
-   * authentication fails.
-   */
   if (
     !authorizationVerification.valid
   ) {
@@ -162,11 +151,6 @@ export async function guardAndExecuteNative<
         ],
       };
 
-    /*
-     * gateSigning returns a non-ALLOW
-     * verification unchanged and does not
-     * consume replay state.
-     */
     const gate =
       await gateSigning({
         verification,
@@ -193,15 +177,10 @@ export async function guardAndExecuteNative<
 
   /*
    * ---------------------------------------------------
-   * VERIFY EXACT TRANSACTION
+   * VERIFY TOOL EVIDENCE + EXACT TRANSACTION
    * ---------------------------------------------------
-   *
-   * Authorization comes only from the
-   * successfully verified EIP-712 envelope.
-   *
-   * Caller does not provide a separate
-   * trusted authorization object.
    */
+
   const verification =
     verifyRawNativeTransfer({
       authorization:
@@ -262,10 +241,8 @@ export async function guardAndExecuteNative<
    * ---------------------------------------------------
    * EXECUTION
    * ---------------------------------------------------
-   *
-   * This is the FIRST point where code
-   * capable of signing may be reached.
    */
+
   const result =
     await input.execute(
       input.transaction
@@ -290,7 +267,7 @@ export async function guardAndExecuteNative<
 
 /*
  * =======================================================
- * AGENT PRIVATE KEY LOADER
+ * PRIVATE KEY
  * =======================================================
  */
 
@@ -321,25 +298,6 @@ Promise<`0x${string}`> {
  * =======================================================
  * REAL BSC TESTNET EXECUTION
  * =======================================================
- *
- * The private key is intentionally loaded
- * only inside execute().
- *
- * Therefore:
- *
- * invalid user authorization
- *          ↓
- * blocked
- *          ↓
- * private key is never read
- *
- * OR
- *
- * provenance mismatch
- *          ↓
- * blocked
- *          ↓
- * private key is never read
  */
 
 export async function broadcastGuardedNativeTransfer(
@@ -390,9 +348,9 @@ export async function broadcastGuardedNativeTransfer(
         transaction
       ) => {
         /*
-         * -----------------------------------------------
+         * -------------------------------------------------
          * DEFENSIVE SIGNER CHECKS
-         * -----------------------------------------------
+         * -------------------------------------------------
          */
 
         if (
@@ -400,7 +358,7 @@ export async function broadcastGuardedNativeTransfer(
           bscTestnet.id
         ) {
           throw new Error(
-            `Signer refuses chain ${transaction.chainId}. Expected BSC Testnet chain ${bscTestnet.id}.`
+            `Signer refuses chain ${transaction.chainId}. Expected ${bscTestnet.id}.`
           );
         }
 
@@ -422,7 +380,7 @@ export async function broadcastGuardedNativeTransfer(
           value <= 0n
         ) {
           throw new Error(
-            "Signer refuses a zero or negative native payment."
+            "Signer refuses zero or negative native payment."
           );
         }
 
@@ -432,9 +390,9 @@ export async function broadcastGuardedNativeTransfer(
           );
 
         /*
-         * -----------------------------------------------
-         * ONLY NOW LOAD SIGNING KEY
-         * -----------------------------------------------
+         * -------------------------------------------------
+         * ONLY NOW ACCESS AGENT PRIVATE KEY
+         * -------------------------------------------------
          */
 
         const privateKey =
@@ -474,9 +432,9 @@ export async function broadcastGuardedNativeTransfer(
           });
 
         /*
-         * -----------------------------------------------
+         * -------------------------------------------------
          * RPC CHAIN CHECK
-         * -----------------------------------------------
+         * -------------------------------------------------
          */
 
         const rpcChainId =
@@ -493,10 +451,18 @@ export async function broadcastGuardedNativeTransfer(
         }
 
         /*
-         * -----------------------------------------------
-         * PREFLIGHT
-         * -----------------------------------------------
+         * -------------------------------------------------
+         * PREFLIGHT SNAPSHOT
+         * -------------------------------------------------
+         *
+         * Capture an explicit block number so
+         * our preflight state is not an ambiguous
+         * moving "latest" state.
          */
+
+        const preflightBlockNumber =
+          await publicClient
+            .getBlockNumber();
 
         const [
           senderBalanceBefore,
@@ -508,12 +474,18 @@ export async function broadcastGuardedNativeTransfer(
               .getBalance({
                 address:
                   account.address,
+
+                blockNumber:
+                  preflightBlockNumber,
               }),
 
             publicClient
               .getBalance({
                 address:
                   recipient,
+
+                blockNumber:
+                  preflightBlockNumber,
               }),
 
             publicClient
@@ -566,9 +538,9 @@ export async function broadcastGuardedNativeTransfer(
         }
 
         /*
-         * -----------------------------------------------
-         * REAL SIGN + BROADCAST
-         * -----------------------------------------------
+         * -------------------------------------------------
+         * SIGN + BROADCAST
+         * -------------------------------------------------
          */
 
         const hash =
@@ -586,31 +558,162 @@ export async function broadcastGuardedNativeTransfer(
             });
 
         /*
-         * Wait until chain inclusion.
+         * -------------------------------------------------
+         * WAIT FOR RECEIPT
+         * -------------------------------------------------
          */
+
         const receipt =
           await publicClient
             .waitForTransactionReceipt({
               hash,
             });
 
+        if (
+          receipt.status !==
+          "success"
+        ) {
+          throw new Error(
+            `Transaction ${hash} was included but did not succeed.`
+          );
+        }
+
+        /*
+         * -------------------------------------------------
+         * READ TRANSACTION BACK FROM CHAIN
+         * -------------------------------------------------
+         *
+         * This is stronger proof than immediately
+         * comparing two "latest" balance reads.
+         */
+
+        const confirmedTransaction =
+          await publicClient
+            .getTransaction({
+              hash,
+            });
+
+        /*
+         * -------------------------------------------------
+         * VERIFY CONFIRMED ONCHAIN TRANSACTION
+         * -------------------------------------------------
+         */
+
+        if (
+          confirmedTransaction
+            .from
+            .toLowerCase() !==
+          account.address
+            .toLowerCase()
+        ) {
+          throw new Error(
+            "Confirmed transaction sender does not match the BOUND agent wallet."
+          );
+        }
+
+        if (
+          !confirmedTransaction.to
+        ) {
+          throw new Error(
+            "Confirmed transaction unexpectedly has no recipient."
+          );
+        }
+
+        if (
+          confirmedTransaction
+            .to
+            .toLowerCase() !==
+          recipient
+            .toLowerCase()
+        ) {
+          throw new Error(
+            "Confirmed onchain recipient differs from the transaction BOUND authorized."
+          );
+        }
+
+        if (
+          confirmedTransaction.value !==
+          value
+        ) {
+          throw new Error(
+            "Confirmed onchain value differs from the transaction BOUND authorized."
+          );
+        }
+
+        if (
+          confirmedTransaction.input !==
+          "0x"
+        ) {
+          throw new Error(
+            "Confirmed native transfer unexpectedly contains calldata."
+          );
+        }
+
+        /*
+         * -------------------------------------------------
+         * BLOCK-CONSISTENT BALANCE SNAPSHOT
+         * -------------------------------------------------
+         *
+         * We deliberately use explicit block numbers.
+         *
+         * This avoids reading "latest" from two RPC
+         * backend nodes that may briefly disagree about
+         * the newest state.
+         */
+
+        const receiptBlockNumber =
+          receipt.blockNumber;
+
+        const previousBlockNumber =
+          receiptBlockNumber >
+          0n
+            ? receiptBlockNumber -
+              1n
+            : receiptBlockNumber;
+
         const [
-          senderBalanceAfter,
-          recipientBalanceAfter,
+          senderBalanceAtReceiptBlock,
+          recipientBalancePreviousBlock,
+          recipientBalanceAtReceiptBlock,
         ] =
           await Promise.all([
             publicClient
               .getBalance({
                 address:
                   account.address,
+
+                blockNumber:
+                  receiptBlockNumber,
               }),
 
             publicClient
               .getBalance({
                 address:
                   recipient,
+
+                blockNumber:
+                  previousBlockNumber,
+              }),
+
+            publicClient
+              .getBalance({
+                address:
+                  recipient,
+
+                blockNumber:
+                  receiptBlockNumber,
               }),
           ]);
+
+        const recipientBlockDelta =
+          recipientBalanceAtReceiptBlock -
+          recipientBalancePreviousBlock;
+
+        /*
+         * =================================================
+         * RETURN AUDIT EVIDENCE
+         * =================================================
+         */
 
         return {
           network:
@@ -618,19 +721,6 @@ export async function broadcastGuardedNativeTransfer(
 
           chainId:
             bscTestnet.id,
-
-          sender:
-            account.address,
-
-          recipient,
-
-          valueWei:
-            transaction.valueWei,
-
-          valueTbnb:
-            formatEther(
-              value
-            ),
 
           hash,
 
@@ -641,9 +731,39 @@ export async function broadcastGuardedNativeTransfer(
             receipt.status,
 
           blockNumber:
-            receipt.blockNumber
+            receiptBlockNumber
               .toString(),
 
+          /*
+           * Confirmed transaction fields read
+           * back from the chain.
+           */
+          confirmedFrom:
+            confirmedTransaction
+              .from,
+
+          confirmedTo:
+            confirmedTransaction
+              .to,
+
+          confirmedValueWei:
+            confirmedTransaction
+              .value
+              .toString(),
+
+          confirmedValueTbnb:
+            formatEther(
+              confirmedTransaction
+                .value
+            ),
+
+          confirmedInput:
+            confirmedTransaction
+              .input,
+
+          /*
+           * Transaction receipt data.
+           */
           gasUsed:
             receipt.gasUsed
               .toString(),
@@ -656,27 +776,54 @@ export async function broadcastGuardedNativeTransfer(
             gasPrice
               .toString(),
 
-          senderBalanceBeforeWei:
-            senderBalanceBefore
+          /*
+           * Preflight snapshot.
+           */
+          preflightBlockNumber:
+            preflightBlockNumber
               .toString(),
 
-          senderBalanceAfterWei:
-            senderBalanceAfter
+          senderBalanceBeforeWei:
+            senderBalanceBefore
               .toString(),
 
           recipientBalanceBeforeWei:
             recipientBalanceBefore
               .toString(),
 
-          recipientBalanceAfterWei:
-            recipientBalanceAfter
+          /*
+           * Deterministic block snapshots.
+           */
+          senderBalanceAfterWei:
+            senderBalanceAtReceiptBlock
               .toString(),
 
+          recipientBalancePreviousBlockWei:
+            recipientBalancePreviousBlock
+              .toString(),
+
+          recipientBalanceAfterWei:
+            recipientBalanceAtReceiptBlock
+              .toString(),
+
+          /*
+           * Keep this name for the runner output,
+           * but now it comes from explicit block
+           * snapshots rather than two "latest" reads.
+           */
           recipientIncreaseWei:
-            (
-              recipientBalanceAfter -
-              recipientBalanceBefore
-            ).toString(),
+            recipientBlockDelta
+              .toString(),
+
+          /*
+           * The authoritative transfer proof is
+           * confirmedValueWei above.
+           *
+           * This boolean is useful demo telemetry.
+           */
+          recipientBlockDeltaMatchesTransfer:
+            recipientBlockDelta ===
+            value,
         };
       },
   });
