@@ -10,7 +10,9 @@
     "tool": "tsx src/tool/server.ts",
     "pin-tool": "tsx src/admin/pin-market-tool.ts",
     "demo-http": "tsx src/demo/http-tool-demo.ts",
-    "agent": "tsx src/agent/runner.ts"
+    "agent": "tsx src/agent/runner.ts",
+    "wallet-create": "tsx src/admin/create-agent-wallet.ts",
+    "wallet-check": "tsx src/chain/check-agent-wallet.ts"
   },
   "keywords": [],
   "author": "",
