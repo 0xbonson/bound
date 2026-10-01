@@ -12,7 +12,9 @@
     "demo-http": "tsx src/demo/http-tool-demo.ts",
     "agent": "tsx src/agent/runner.ts",
     "wallet-create": "tsx src/admin/create-agent-wallet.ts",
-    "wallet-check": "tsx src/chain/check-agent-wallet.ts"
+    "wallet-check": "tsx src/chain/check-agent-wallet.ts",
+    "vendor-create": "tsx src/admin/create-vendor-wallet.ts",
+    "native-tool": "tsx src/tool/native-server.ts"
   },
   "keywords": [],
   "author": "",
