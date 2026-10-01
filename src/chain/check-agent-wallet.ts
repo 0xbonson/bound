@@ -5,9 +5,7 @@ import {
 import {
   createPublicClient,
   formatEther,
-  formatUnits,
   http,
-  parseAbi,
 } from "viem";
 
 import {
@@ -21,29 +19,9 @@ import {
 const PRIVATE_KEY_PATH =
   ".bound/agent/private-key";
 
-/*
- * Existing ERC-20 test token already deployed
- * on BNB Smart Chain Testnet.
- *
- * We are reusing it only as a test asset so we
- * can prove BOUND's real signing/execution flow
- * without wasting time deploying another token.
- *
- * It is NOT part of BOUND's product architecture.
- */
-const TEST_TOKEN =
-  "0x0ed5e77b023eb522EB10313CA2dc6A3aB50f28b6" as const;
-
 const RPC_URL =
   process.env.BSC_TESTNET_RPC ??
   "https://data-seed-prebsc-1-s1.bnbchain.org:8545/";
-
-const erc20Abi =
-  parseAbi([
-    "function symbol() view returns (string)",
-    "function decimals() view returns (uint8)",
-    "function balanceOf(address owner) view returns (uint256)",
-  ]);
 
 async function loadPrivateKey():
 Promise<`0x${string}`> {
@@ -88,6 +66,12 @@ async function main() {
         ),
     });
 
+  const balance =
+    await client.getBalance({
+      address:
+        account.address,
+    });
+
   console.log(
     "\n=== BOUND AGENT WALLET ==="
   );
@@ -104,79 +88,14 @@ async function main() {
     `Chain ID: ${bscTestnet.id}`
   );
 
-  const [
-    nativeBalance,
-    symbol,
-    decimals,
-    tokenBalance,
-  ] =
-    await Promise.all([
-      client.getBalance({
-        address:
-          account.address,
-      }),
-
-      client.readContract({
-        address:
-          TEST_TOKEN,
-
-        abi:
-          erc20Abi,
-
-        functionName:
-          "symbol",
-      }),
-
-      client.readContract({
-        address:
-          TEST_TOKEN,
-
-        abi:
-          erc20Abi,
-
-        functionName:
-          "decimals",
-      }),
-
-      client.readContract({
-        address:
-          TEST_TOKEN,
-
-        abi:
-          erc20Abi,
-
-        functionName:
-          "balanceOf",
-
-        args: [
-          account.address,
-        ],
-      }),
-    ]);
-
   console.log(
-    "\n=== ONCHAIN BALANCES ==="
+    "\n=== ONCHAIN BALANCE ==="
   );
 
   console.log(
     `tBNB: ${formatEther(
-      nativeBalance
+      balance
     )}`
-  );
-
-  console.log(
-    `${symbol}: ${formatUnits(
-      tokenBalance,
-      decimals
-    )}`
-  );
-
-  console.log(
-    `Token decimals: ${decimals}`
-  );
-
-  console.log(
-    `Token contract: ${TEST_TOKEN}`
   );
 
   console.log(
@@ -184,39 +103,22 @@ async function main() {
   );
 
   if (
-    nativeBalance === 0n
+    balance > 0n
   ) {
     console.log(
-      "GAS: NOT READY — agent wallet needs a small amount of testnet tBNB."
+      "GAS + NATIVE PAYMENT: READY"
     );
-  } else {
-    console.log(
-      "GAS: READY"
-    );
-  }
 
-  if (
-    tokenBalance === 0n
-  ) {
     console.log(
-      `TOKEN: NOT READY — agent wallet needs some ${symbol}.`
+      "\nBOUND agent wallet is ready for native tBNB testnet execution."
     );
   } else {
     console.log(
-      "TOKEN: READY"
+      "NOT READY — agent wallet needs testnet tBNB."
     );
-  }
 
-  if (
-    nativeBalance > 0n &&
-    tokenBalance > 0n
-  ) {
     console.log(
-      "\nBOUND agent wallet is ready for a real testnet transfer."
-    );
-  } else {
-    console.log(
-      "\nDo not enable signing yet."
+      "\nDo not enable real signing yet."
     );
   }
 }
