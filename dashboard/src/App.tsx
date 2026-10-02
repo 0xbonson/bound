@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import "./App.css";
 
 const API_BASE =
@@ -35,25 +40,31 @@ type ComparisonItem = {
 
 type VerificationResult = {
   sessionId: string;
+
   verification: Verification;
+
   comparison: {
     recipient: ComparisonItem & {
       expected: string;
       actual: string;
     };
+
     amount: ComparisonItem & {
       expectedWei: string;
       actualWei: string;
     };
+
     chain: ComparisonItem & {
       expected: number;
       actual: number;
     };
+
     calldata: ComparisonItem & {
       expected: string;
       actual: string;
     };
   };
+
   signerInvoked: boolean;
   broadcast: boolean;
 };
@@ -129,25 +140,81 @@ type OnchainProof = {
   transactionIndex: number;
 };
 
-type Candidate = {
-  recipient: string;
-  amountTbnb: string;
-  chainId: string;
-  calldata: string;
+type ScenarioId =
+  | "clean"
+  | "amount"
+  | "recipient"
+  | "replay";
+
+type Scenario = {
+  id: ScenarioId;
+  number: string;
+  label: string;
+  title: string;
+  description: string;
+  action: string;
 };
+
+type RunState =
+  | "idle"
+  | "running"
+  | "done"
+  | "error";
 
 type ApiErrorPayload = {
   error?: string;
   message?: string;
 };
 
+const scenarios: Scenario[] = [
+  {
+    id: "clean",
+    number: "01",
+    label: "CLEAN FLOW",
+    title: "Everything still agrees.",
+    description:
+      "The candidate preserves the recipient, amount, network, and calldata from signed upstream evidence.",
+    action: "Run clean execution",
+  },
+  {
+    id: "amount",
+    number: "02",
+    label: "AMOUNT DRIFT",
+    title: "Inside the limit. Outside the evidence.",
+    description:
+      "The user allows up to 0.005 tBNB, but the signed quote is exactly 0.001 tBNB. The candidate is changed to 0.004321 tBNB.",
+    action: "Run amount drift",
+  },
+  {
+    id: "recipient",
+    number: "03",
+    label: "RECIPIENT CORRUPTION",
+    title: "The destination changes after attestation.",
+    description:
+      "The trusted evidence still names the original vendor while the candidate transaction points somewhere else.",
+    action: "Run recipient corruption",
+  },
+  {
+    id: "replay",
+    number: "04",
+    label: "REPLAY ATTEMPT",
+    title: "Valid evidence should not become reusable authority.",
+    description:
+      "Fresh signed evidence reaches the gate once. The second use of the same evidence identifier must be rejected.",
+    action: "Run replay attempt",
+  },
+];
+
 async function requestJson<T>(
   path: string,
   options?: RequestInit,
 ): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, options);
+  const response = await fetch(
+    `${API_BASE}${path}`,
+    options,
+  );
 
-  let body: unknown;
+  let body: unknown = null;
 
   try {
     body = await response.json();
@@ -156,12 +223,13 @@ async function requestJson<T>(
   }
 
   if (!response.ok) {
-    const payload = body as ApiErrorPayload | null;
+    const payload =
+      body as ApiErrorPayload | null;
 
     throw new Error(
       payload?.message ??
-        payload?.error ??
-        `BOUND API returned HTTP ${response.status}.`,
+      payload?.error ??
+      `BOUND API returned HTTP ${response.status}.`,
     );
   }
 
@@ -172,306 +240,665 @@ function tbnbToWei(value: string): string {
   const normalized = value.trim();
 
   if (!/^\d+(\.\d*)?$/.test(normalized)) {
-    throw new Error("Amount must be a non-negative decimal number.");
+    throw new Error(
+      "Amount must be a non-negative decimal number.",
+    );
   }
 
-  const [wholePart, fractionPart = ""] = normalized.split(".");
+  const [wholePart, fractionPart = ""] =
+    normalized.split(".");
 
   if (fractionPart.length > 18) {
-    throw new Error("tBNB amount supports at most 18 decimal places.");
+    throw new Error(
+      "tBNB supports at most 18 decimal places.",
+    );
   }
 
-  const paddedFraction = fractionPart.padEnd(18, "0");
+  const paddedFraction =
+    fractionPart.padEnd(18, "0");
 
   return (
-    BigInt(wholePart || "0") * 10n ** 18n +
+    BigInt(wholePart || "0") *
+    10n ** 18n +
     BigInt(paddedFraction || "0")
   ).toString();
 }
 
-function shortHex(value: string, left = 8, right = 6) {
-  if (value.length <= left + right + 3) {
+function shortHex(
+  value: string,
+  left = 8,
+  right = 6,
+) {
+  if (
+    value.length <=
+    left + right + 3
+  ) {
     return value;
   }
 
-  return `${value.slice(0, left)}…${value.slice(-right)}`;
+  return `${value.slice(
+    0,
+    left,
+  )}…${value.slice(-right)}`;
 }
 
-function formatRemaining(milliseconds: number) {
-  if (milliseconds <= 0) {
-    return "expired";
-  }
+function navigate(to: string) {
+  window.history.pushState(
+    {},
+    "",
+    to,
+  );
 
-  const totalSeconds = Math.floor(milliseconds / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
+  window.dispatchEvent(
+    new PopStateEvent("popstate"),
+  );
 
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
 }
 
-function ResultMark({
-  ok,
+function RouteLink({
+  to,
+  className,
+  children,
 }: {
-  ok: boolean;
+  to: string;
+  className?: string;
+  children: ReactNode;
 }) {
   return (
-    <span className={`result-mark ${ok ? "pass" : "fail"}`}>
-      {ok ? "✓" : "×"}
+    <a
+      href={to}
+      className={className}
+      onClick={(event) => {
+        event.preventDefault();
+        navigate(to);
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
+function BrandMark() {
+  return (
+    <span
+      className="brand-mark"
+      aria-hidden="true"
+    >
+      <svg
+        viewBox="0 0 36 36"
+        fill="none"
+      >
+        <path
+          d="M5 8.5H13.2C17.1 8.5 20.3 11.7 20.3 15.6V20.4C20.3 24.3 23.5 27.5 27.4 27.5H31"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        />
+
+        <path
+          d="M5 18H31"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        />
+
+        <path
+          d="M5 27.5H8.6C12.5 27.5 15.7 24.3 15.7 20.4V15.6C15.7 11.7 18.9 8.5 22.8 8.5H31"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        />
+
+        <circle
+          cx="18"
+          cy="18"
+          r="3.1"
+          fill="currentColor"
+        />
+      </svg>
     </span>
   );
 }
 
-function App() {
-  const [apiOnline, setApiOnline] = useState<boolean | null>(
-    null,
+function SiteHeader({
+  path,
+  apiOnline,
+}: {
+  path: string;
+  apiOnline: boolean | null;
+}) {
+  return (
+    <header className="site-header">
+      <RouteLink
+        to="/"
+        className="site-brand"
+      >
+        <BrandMark />
+        <span>BOUND</span>
+      </RouteLink>
+
+      <nav className="site-nav">
+        <RouteLink
+          to="/"
+          className={
+            path === "/" ? "active" : ""
+          }
+        >
+          Product
+        </RouteLink>
+
+        <RouteLink
+          to="/app"
+          className={
+            path === "/app"
+              ? "active"
+              : ""
+          }
+        >
+          Lab
+        </RouteLink>
+
+        <RouteLink
+          to="/proof"
+          className={
+            path === "/proof"
+              ? "active"
+              : ""
+          }
+        >
+          Proof
+        </RouteLink>
+
+        <RouteLink
+          to="/docs"
+          className={
+            path === "/docs"
+              ? "active"
+              : ""
+          }
+        >
+          Docs
+        </RouteLink>
+      </nav>
+
+      <div className="header-meta">
+        <span>BSC TESTNET</span>
+
+        <span
+          className={`live-status ${apiOnline === true
+            ? "online"
+            : apiOnline === false
+              ? "offline"
+              : ""
+            }`}
+        >
+          <i />
+
+          {apiOnline === null
+            ? "checking"
+            : apiOnline
+              ? "api live"
+              : "api offline"}
+        </span>
+      </div>
+    </header>
   );
+}
 
-  const [session, setSession] = useState<Session | null>(
-    null,
+function SiteFooter() {
+  return (
+    <footer className="site-footer">
+      <div className="footer-brand">
+        <BrandMark />
+
+        <div>
+          <strong>BOUND</strong>
+          <span>
+            Context integrity before
+            execution.
+          </span>
+        </div>
+      </div>
+
+      <div className="footer-links">
+        <RouteLink to="/app">
+          Lab
+        </RouteLink>
+
+        <RouteLink to="/proof">
+          Proof
+        </RouteLink>
+
+        <RouteLink to="/docs">
+          Docs
+        </RouteLink>
+      </div>
+
+      <div className="footer-state">
+        <span>Prototype</span>
+        <span>BSC Testnet</span>
+      </div>
+    </footer>
   );
+}
 
-  const [candidate, setCandidate] = useState<Candidate>({
-    recipient: "",
-    amountTbnb: "",
-    chainId: "",
-    calldata: "0x",
-  });
+function HomeFlow() {
+  return (
+    <div className="home-flow">
+      <div className="home-flow-head">
+        <span>
+          LIVE EXECUTION MODEL
+        </span>
 
-  const [verification, setVerification] =
-    useState<VerificationResult | null>(null);
+        <strong>
+          Context enters from three
+          directions.
+        </strong>
+      </div>
 
-  const [replayResult, setReplayResult] =
-    useState<ReplayResult | null>(null);
+      <div className="home-source hs-user">
+        <span>USER</span>
+        <strong>
+          ≤ 0.005 tBNB
+        </strong>
+        <small>EIP-712 mandate</small>
+      </div>
 
-  const [proof, setProof] =
-    useState<OnchainProof | null>(null);
+      <div className="home-source hs-tool">
+        <span>TOOL</span>
+        <strong>
+          0.001 tBNB
+        </strong>
+        <small>
+          signed Ed25519 evidence
+        </small>
+      </div>
 
-  const [loadingSession, setLoadingSession] =
-    useState(false);
+      <div className="home-source hs-agent">
+        <span>CANDIDATE</span>
+        <strong>
+          0.004321 tBNB
+        </strong>
+        <small>controlled drift</small>
+      </div>
 
-  const [verifying, setVerifying] =
-    useState(false);
+      <div className="home-rail hr-one">
+        <i />
+      </div>
 
-  const [testingReplay, setTestingReplay] =
-    useState(false);
+      <div className="home-rail hr-two">
+        <i />
+      </div>
 
-  const [loadingProof, setLoadingProof] =
-    useState(false);
+      <div className="home-rail hr-three">
+        <i />
+      </div>
+
+      <div className="home-bound-node">
+        <span>B</span>
+        <small>BOUND</small>
+      </div>
+
+      <div className="home-output-rail" />
+
+      <div className="home-signer">
+        <span>SIGNER</span>
+        <div className="closed-bars">
+          <i />
+          <i />
+        </div>
+        <strong>CLOSED</strong>
+      </div>
+
+      <div className="home-flow-result">
+        <span>
+          AMOUNT PROVENANCE
+        </span>
+
+        <strong>BLOCK</strong>
+
+        <small>
+          0.004321 ≠ 0.001
+        </small>
+      </div>
+    </div>
+  );
+}
+
+function HomePage() {
+  return (
+    <>
+      <main className="home-page">
+        <section className="home-hero">
+          <div className="hero-copy">
+            <span className="micro-label">
+              CONTEXT INTEGRITY FOR
+              ONCHAIN AI AGENTS
+            </span>
+
+            <h1>
+              AI agents can
+              <br />
+              improvise.
+              <br />
+
+              <em>
+                Signing shouldn’t.
+              </em>
+            </h1>
+
+            <p>
+              BOUND checks whether the
+              exact transaction reaching
+              a signer still agrees with
+              what the user authorized
+              and what a trusted tool
+              actually attested.
+            </p>
+
+            <div className="hero-actions">
+              <RouteLink
+                to="/app"
+                className="primary-link"
+              >
+                Run the live lab
+                <span>↗</span>
+              </RouteLink>
+
+              <RouteLink
+                to="/proof"
+                className="text-link"
+              >
+                Inspect real proof
+              </RouteLink>
+            </div>
+          </div>
+
+          <HomeFlow />
+        </section>
+
+        <section className="home-demo-teaser">
+          <div>
+            <span className="micro-label">
+              ONE CLICK DEMO
+            </span>
+
+            <h2>
+              The policy passes.
+              <br />
+              The evidence does not.
+            </h2>
+          </div>
+
+          <div className="teaser-equation">
+            <div>
+              <span>USER LIMIT</span>
+
+              <strong>
+                0.004321
+                <i>≤</i>
+                0.005
+              </strong>
+
+              <small className="allow-text">
+                PASS
+              </small>
+            </div>
+
+            <div>
+              <span>
+                SIGNED EVIDENCE
+              </span>
+
+              <strong>
+                0.004321
+                <i>≠</i>
+                0.001
+              </strong>
+
+              <small className="block-text">
+                BREAK
+              </small>
+            </div>
+
+            <div className="teaser-block">
+              <span>BOUND</span>
+              <strong>BLOCK</strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="home-final">
+          <span className="micro-label">
+            BEFORE THE KEY
+          </span>
+
+          <h2>
+            Let the agent propose.
+            <br />
+            Let evidence decide whether
+            the proposal reaches the
+            signer.
+          </h2>
+
+          <RouteLink
+            to="/app"
+            className="primary-link"
+          >
+            Open Execution Lab
+            <span>→</span>
+          </RouteLink>
+        </section>
+      </main>
+
+      <SiteFooter />
+    </>
+  );
+}
+
+function ExecutionLabPage() {
+  const [selected, setSelected] =
+    useState<ScenarioId>("amount");
+
+  const [runState, setRunState] =
+    useState<RunState>("idle");
+
+  const [session, setSession] =
+    useState<Session | null>(null);
+
+  const [
+    verification,
+    setVerification,
+  ] =
+    useState<VerificationResult | null>(
+      null,
+    );
+
+  const [
+    replayResult,
+    setReplayResult,
+  ] =
+    useState<ReplayResult | null>(
+      null,
+    );
 
   const [error, setError] =
     useState<string | null>(null);
 
-  const [now, setNow] =
-    useState(Date.now());
+  const [inspectorOpen, setInspectorOpen] =
+    useState(false);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setNow(Date.now());
-    }, 1000);
+  const scenario =
+    scenarios.find(
+      (item) => item.id === selected,
+    ) ?? scenarios[1];
 
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, []);
-
-  useEffect(() => {
-    async function bootstrap() {
-      try {
-        await requestJson("/api/health");
-        setApiOnline(true);
-      } catch {
-        setApiOnline(false);
-        return;
+  const candidate =
+    useMemo(() => {
+      if (!session) {
+        return null;
       }
 
-      try {
-        setLoadingSession(true);
-
-        const nextSession =
-          await requestJson<Session>("/api/session", {
-            method: "POST",
-          });
-
-        applySession(nextSession);
-      } catch (caught) {
-        setError(
-          caught instanceof Error
-            ? caught.message
-            : "Unable to create BOUND session.",
-        );
-      } finally {
-        setLoadingSession(false);
+      if (selected === "amount") {
+        return {
+          chainId:
+            session.transaction.chainId,
+          to: session.transaction.to,
+          valueWei:
+            tbnbToWei("0.004321"),
+          amountTbnb: "0.004321",
+          data:
+            session.transaction.data,
+        };
       }
-    }
 
-    void bootstrap();
-  }, []);
+      if (
+        selected === "recipient"
+      ) {
+        return {
+          chainId:
+            session.transaction.chainId,
+          to: MUTATED_RECIPIENT,
+          valueWei:
+            session.transaction.valueWei,
+          amountTbnb:
+            session.evidence.amountTbnb,
+          data:
+            session.transaction.data,
+        };
+      }
 
-  const remainingMs =
-    session
-      ? session.expiresAt - now
-      : 0;
+      return {
+        chainId:
+          session.transaction.chainId,
+        to: session.transaction.to,
+        valueWei:
+          session.transaction.valueWei,
+        amountTbnb:
+          session.evidence.amountTbnb,
+        data:
+          session.transaction.data,
+      };
+    }, [session, selected]);
 
-  const sessionExpired =
-    Boolean(session) &&
-    remainingMs <= 0;
+  const decision =
+    selected === "replay"
+      ? replayResult?.secondGate
+        .decision
+      : verification?.verification
+        .decision;
 
-  const flowState = useMemo(() => {
-    if (verifying) {
-      return "verifying";
-    }
+  const firstReplay =
+    replayResult?.firstGate.decision;
 
-    if (!verification) {
-      return "idle";
-    }
+  const primaryCode =
+    selected === "replay"
+      ? replayResult?.secondGate
+        .findings[0]?.code
+      : verification?.verification
+        .findings[0]?.code;
 
-    return verification.verification.decision === "ALLOW"
-      ? "allow"
-      : "block";
-  }, [verification, verifying]);
+  const signerState =
+    decision === "ALLOW"
+      ? "ELIGIBLE"
+      : decision
+        ? "CLOSED"
+        : "WAITING";
 
-  function applySession(nextSession: Session) {
-    setSession(nextSession);
+  const recipientMatches =
+    verification?.comparison
+      .recipient.matches;
 
-    setCandidate({
-      recipient:
-        nextSession.transaction.to,
+  const amountMatches =
+    verification?.comparison
+      .amount.matches;
 
-      amountTbnb:
-        nextSession.evidence.amountTbnb,
+  const chainMatches =
+    verification?.comparison
+      .chain.matches;
 
-      chainId:
-        String(
-          nextSession.transaction.chainId,
-        ),
+  const calldataMatches =
+    verification?.comparison
+      .calldata.matches;
 
-      calldata:
-        nextSession.transaction.data,
-    });
-
+  function changeScenario(
+    id: ScenarioId,
+  ) {
+    setSelected(id);
+    setRunState("idle");
+    setSession(null);
     setVerification(null);
     setReplayResult(null);
     setError(null);
+    setInspectorOpen(false);
   }
 
-  function updateCandidate(
-    patch: Partial<Candidate>,
-  ) {
-    setCandidate((current) => ({
-      ...current,
-      ...patch,
-    }));
-
-    setVerification(null);
-    setError(null);
-  }
-
-  async function createFreshSession() {
+  async function runScenario() {
     try {
-      setLoadingSession(true);
-      setError(null);
-
-      const nextSession =
-        await requestJson<Session>("/api/session", {
-          method: "POST",
-        });
-
-      applySession(nextSession);
-      setApiOnline(true);
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to create a new session.",
-      );
-    } finally {
-      setLoadingSession(false);
-    }
-  }
-
-  function resetCandidate() {
-    if (!session) {
-      return;
-    }
-
-    setCandidate({
-      recipient:
-        session.transaction.to,
-
-      amountTbnb:
-        session.evidence.amountTbnb,
-
-      chainId:
-        String(
-          session.transaction.chainId,
-        ),
-
-      calldata:
-        session.transaction.data,
-    });
-
-    setVerification(null);
-    setError(null);
-  }
-
-  function mutateRecipient() {
-    updateCandidate({
-      recipient:
-        MUTATED_RECIPIENT,
-    });
-  }
-
-  function mutateAmount() {
-    updateCandidate({
-      amountTbnb:
-        "0.002",
-    });
-  }
-
-  function mutateNetwork() {
-    updateCandidate({
-      chainId:
-        candidate.chainId === "97"
-          ? "56"
-          : "97",
-    });
-  }
-
-  function mutateCalldata() {
-    updateCandidate({
-      calldata:
-        candidate.calldata === "0x"
-          ? "0x1234"
-          : "0x",
-    });
-  }
-
-  async function verifyTransaction() {
-    if (!session) {
-      return;
-    }
-
-    try {
-      setVerifying(true);
+      setRunState("running");
+      setSession(null);
       setVerification(null);
+      setReplayResult(null);
       setError(null);
 
-      const chainId =
-        Number(candidate.chainId);
-
-      if (
-        !Number.isInteger(chainId) ||
-        chainId < 0
-      ) {
-        throw new Error(
-          "Chain ID must be a valid integer.",
+      const freshSession =
+        await requestJson<Session>(
+          "/api/session",
+          {
+            method: "POST",
+          },
         );
+
+      setSession(freshSession);
+
+      if (selected === "replay") {
+        const replay =
+          await requestJson<ReplayResult>(
+            "/api/replay-test",
+            {
+              method: "POST",
+
+              headers: {
+                "content-type":
+                  "application/json",
+              },
+
+              body: JSON.stringify({
+                sessionId:
+                  freshSession.sessionId,
+
+                transaction:
+                  freshSession.transaction,
+              }),
+            },
+          );
+
+        setReplayResult(replay);
+        setRunState("done");
+        return;
       }
 
-      const valueWei =
-        tbnbToWei(
-          candidate.amountTbnb,
-        );
+      let transaction = {
+        ...freshSession.transaction,
+      };
+
+      if (selected === "amount") {
+        transaction = {
+          ...transaction,
+          valueWei:
+            tbnbToWei("0.004321"),
+        };
+      }
+
+      if (
+        selected === "recipient"
+      ) {
+        transaction = {
+          ...transaction,
+          to: MUTATED_RECIPIENT,
+        };
+      }
 
       const result =
         await requestJson<VerificationResult>(
@@ -484,47 +911,807 @@ function App() {
                 "application/json",
             },
 
-            body:
-              JSON.stringify({
-                sessionId:
-                  session.sessionId,
+            body: JSON.stringify({
+              sessionId:
+                freshSession.sessionId,
 
-                transaction: {
-                  chainId,
-
-                  to:
-                    candidate.recipient.trim(),
-
-                  valueWei,
-
-                  data:
-                    candidate.calldata.trim(),
-                },
-              }),
+              transaction,
+            }),
           },
         );
 
       setVerification(result);
+      setRunState("done");
     } catch (caught) {
+      setRunState("error");
+
       setError(
         caught instanceof Error
           ? caught.message
-          : "Verification failed.",
+          : "Scenario execution failed.",
       );
-    } finally {
-      setVerifying(false);
     }
   }
 
-  async function testReplay() {
-    if (!session) {
-      return;
-    }
+  const displayedMax =
+    session?.authorization
+      .maxAmountTbnb ?? "0.005";
 
+  const displayedEvidenceAmount =
+    session?.evidence.amountTbnb ??
+    "0.001";
+
+  const displayedRecipient =
+    session?.evidence.recipient ??
+    "0x32438dE3179DF205c63e8793A20BA6885762f537";
+
+  const displayedCandidateAmount =
+    selected === "amount"
+      ? "0.004321"
+      : displayedEvidenceAmount;
+
+  const displayedCandidateRecipient =
+    selected === "recipient"
+      ? MUTATED_RECIPIENT
+      : displayedRecipient;
+
+  const stageClass = [
+    "execution-stage",
+    `scenario-${selected}`,
+    `state-${runState}`,
+    decision
+      ? `decision-${decision.toLowerCase()}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <>
+      <main className="lab-page">
+        <section className="lab-heading">
+          <div>
+            <span className="micro-label">
+              LIVE EXECUTION LAB
+            </span>
+
+            <h1>
+              Break the context.
+              <br />
+              Watch the signer stop.
+            </h1>
+          </div>
+
+          <p>
+            No transaction fields need
+            to be typed. Pick a controlled
+            scenario and BOUND will call
+            the real local verification
+            API behind this prototype.
+          </p>
+        </section>
+
+        <section className="scenario-selector">
+          {scenarios.map((item) => (
+            <button
+              key={item.id}
+              className={
+                selected === item.id
+                  ? "active"
+                  : ""
+              }
+              onClick={() =>
+                changeScenario(item.id)
+              }
+              disabled={
+                runState === "running"
+              }
+            >
+              <span>
+                {item.number}
+              </span>
+
+              <strong>
+                {item.label}
+              </strong>
+
+              <small>
+                {item.title}
+              </small>
+            </button>
+          ))}
+        </section>
+
+        <section className="scenario-intro">
+          <div>
+            <span>
+              {scenario.number} /{" "}
+              {scenario.label}
+            </span>
+
+            <h2>
+              {scenario.title}
+            </h2>
+
+            <p>
+              {scenario.description}
+            </p>
+          </div>
+
+          <button
+            className="run-scenario"
+            onClick={() =>
+              void runScenario()
+            }
+            disabled={
+              runState === "running"
+            }
+          >
+            <span>
+              {runState === "running"
+                ? "BOUND is checking…"
+                : scenario.action}
+            </span>
+
+            <span>→</span>
+          </button>
+        </section>
+
+        {error && (
+          <div className="lab-error">
+            <strong>
+              Scenario stopped.
+            </strong>
+
+            <span>{error}</span>
+          </div>
+        )}
+
+        <section className={stageClass}>
+          <div className="source-node source-user">
+            <span>USER MANDATE</span>
+
+            <strong>
+              ≤ {displayedMax} tBNB
+            </strong>
+
+            <small>EIP-712</small>
+          </div>
+
+          <div className="source-node source-tool">
+            <span>
+              SIGNED EVIDENCE
+            </span>
+
+            <strong>
+              {displayedEvidenceAmount}{" "}
+              tBNB
+            </strong>
+
+            <small>
+              {session
+                ? shortHex(
+                  displayedRecipient,
+                  8,
+                  6,
+                )
+                : "trusted vendor"}
+            </small>
+          </div>
+
+          <div className="source-node source-candidate">
+            <span>
+              CANDIDATE TX
+            </span>
+
+            <strong>
+              {displayedCandidateAmount}{" "}
+              tBNB
+            </strong>
+
+            <small>
+              {shortHex(
+                displayedCandidateRecipient,
+                8,
+                6,
+              )}
+            </small>
+          </div>
+
+          <div className="stage-rail rail-user">
+            <i />
+          </div>
+
+          <div className="stage-rail rail-tool">
+            <i />
+          </div>
+
+          <div className="stage-rail rail-candidate">
+            <i />
+          </div>
+
+          <div className="bound-engine">
+            <div className="bound-ring outer-ring" />
+            <div className="bound-ring inner-ring" />
+
+            <strong>B</strong>
+
+            <span>BOUND</span>
+
+            <small>
+              context integrity
+            </small>
+          </div>
+
+          <div className="signer-rail">
+            <i />
+          </div>
+
+          <div
+            className={`signer-node ${signerState.toLowerCase()
+              }`}
+          >
+            <span>
+              SIGNER BOUNDARY
+            </span>
+
+            <div className="signer-door">
+              <i />
+              <i />
+            </div>
+
+            <strong>
+              {signerState}
+            </strong>
+          </div>
+
+          <div className="stage-status">
+            {runState === "idle" && (
+              <>
+                <span>
+                  READY
+                </span>
+
+                <strong>
+                  Run the selected
+                  scenario.
+                </strong>
+              </>
+            )}
+
+            {runState ===
+              "running" && (
+                <>
+                  <span>
+                    VERIFYING
+                  </span>
+
+                  <strong>
+                    Binding trusted context
+                    to the candidate…
+                  </strong>
+                </>
+              )}
+
+            {runState === "error" && (
+              <>
+                <span>ERROR</span>
+
+                <strong>
+                  API request stopped.
+                </strong>
+              </>
+            )}
+
+            {runState === "done" &&
+              selected !== "replay" && (
+                <>
+                  <span>
+                    BOUND DECISION
+                  </span>
+
+                  <strong
+                    className={
+                      decision === "ALLOW"
+                        ? "allow-text"
+                        : "block-text"
+                    }
+                  >
+                    {decision}
+                  </strong>
+
+                  <code>
+                    {primaryCode}
+                  </code>
+                </>
+              )}
+
+            {runState === "done" &&
+              selected === "replay" && (
+                <>
+                  <span>
+                    REPLAY RESULT
+                  </span>
+
+                  <strong className="block-text">
+                    SECOND USE BLOCKED
+                  </strong>
+
+                  <code>
+                    {primaryCode}
+                  </code>
+                </>
+              )}
+          </div>
+        </section>
+
+        {selected !== "replay" ? (
+          <section className="verification-strip">
+            <div>
+              <span>RECIPIENT</span>
+
+              <strong
+                className={
+                  recipientMatches ===
+                    false
+                    ? "block-text"
+                    : recipientMatches ===
+                      true
+                      ? "allow-text"
+                      : ""
+                }
+              >
+                {recipientMatches ===
+                  undefined
+                  ? "—"
+                  : recipientMatches
+                    ? "MATCH"
+                    : "BREAK"}
+              </strong>
+            </div>
+
+            <div>
+              <span>AMOUNT</span>
+
+              <strong
+                className={
+                  amountMatches === false
+                    ? "block-text"
+                    : amountMatches === true
+                      ? "allow-text"
+                      : ""
+                }
+              >
+                {amountMatches ===
+                  undefined
+                  ? "—"
+                  : amountMatches
+                    ? "MATCH"
+                    : "BREAK"}
+              </strong>
+            </div>
+
+            <div>
+              <span>NETWORK</span>
+
+              <strong
+                className={
+                  chainMatches === false
+                    ? "block-text"
+                    : chainMatches === true
+                      ? "allow-text"
+                      : ""
+                }
+              >
+                {chainMatches === undefined
+                  ? "—"
+                  : chainMatches
+                    ? "MATCH"
+                    : "BREAK"}
+              </strong>
+            </div>
+
+            <div>
+              <span>CALLDATA</span>
+
+              <strong
+                className={
+                  calldataMatches ===
+                    false
+                    ? "block-text"
+                    : calldataMatches ===
+                      true
+                      ? "allow-text"
+                      : ""
+                }
+              >
+                {calldataMatches ===
+                  undefined
+                  ? "—"
+                  : calldataMatches
+                    ? "MATCH"
+                    : "BREAK"}
+              </strong>
+            </div>
+          </section>
+        ) : (
+          <section className="replay-strip">
+            <div>
+              <span>
+                FIRST GATE
+              </span>
+
+              <strong
+                className={
+                  firstReplay === "ALLOW"
+                    ? "allow-text"
+                    : ""
+                }
+              >
+                {firstReplay ?? "—"}
+              </strong>
+
+              <small>
+                fresh evidence
+              </small>
+            </div>
+
+            <div className="replay-connector">
+              →
+            </div>
+
+            <div>
+              <span>
+                SAME EVIDENCE
+              </span>
+
+              <strong
+                className={
+                  decision === "BLOCK"
+                    ? "block-text"
+                    : ""
+                }
+              >
+                {decision ?? "—"}
+              </strong>
+
+              <small>
+                second gate
+              </small>
+            </div>
+          </section>
+        )}
+
+        <section className="lab-explanation">
+          <div>
+            <span className="micro-label">
+              WHAT JUST HAPPENED
+            </span>
+
+            {selected === "clean" && (
+              <h2>
+                The proposal preserved
+                the trusted context.
+              </h2>
+            )}
+
+            {selected === "amount" && (
+              <h2>
+                The user limit still
+                passes. The provenance
+                does not.
+              </h2>
+            )}
+
+            {selected ===
+              "recipient" && (
+                <h2>
+                  The amount stayed valid.
+                  The destination did not.
+                </h2>
+              )}
+
+            {selected === "replay" && (
+              <h2>
+                A valid evidence packet
+                did not become reusable
+                authority.
+              </h2>
+            )}
+          </div>
+
+          <div className="explanation-facts">
+            {selected === "amount" && (
+              <>
+                <div>
+                  <span>
+                    USER POLICY
+                  </span>
+
+                  <strong>
+                    0.004321 ≤ 0.005
+                  </strong>
+
+                  <small className="allow-text">
+                    within limit
+                  </small>
+                </div>
+
+                <div>
+                  <span>
+                    EVIDENCE BINDING
+                  </span>
+
+                  <strong>
+                    0.004321 ≠ 0.001
+                  </strong>
+
+                  <small className="block-text">
+                    provenance break
+                  </small>
+                </div>
+              </>
+            )}
+
+            {selected ===
+              "recipient" && (
+                <>
+                  <div>
+                    <span>
+                      ATTESTED
+                    </span>
+
+                    <strong>
+                      {shortHex(
+                        displayedRecipient,
+                        10,
+                        8,
+                      )}
+                    </strong>
+
+                    <small>
+                      trusted evidence
+                    </small>
+                  </div>
+
+                  <div>
+                    <span>
+                      PROPOSED
+                    </span>
+
+                    <strong>
+                      {shortHex(
+                        MUTATED_RECIPIENT,
+                        10,
+                        8,
+                      )}
+                    </strong>
+
+                    <small className="block-text">
+                      differs
+                    </small>
+                  </div>
+                </>
+              )}
+
+            {selected === "clean" && (
+              <>
+                <div>
+                  <span>
+                    TOOL EVIDENCE
+                  </span>
+
+                  <strong>
+                    {displayedEvidenceAmount}{" "}
+                    tBNB
+                  </strong>
+
+                  <small>
+                    signed reference
+                  </small>
+                </div>
+
+                <div>
+                  <span>
+                    CANDIDATE
+                  </span>
+
+                  <strong>
+                    {displayedCandidateAmount}{" "}
+                    tBNB
+                  </strong>
+
+                  <small className="allow-text">
+                    exact match
+                  </small>
+                </div>
+              </>
+            )}
+
+            {selected === "replay" && (
+              <>
+                <div>
+                  <span>
+                    FIRST USE
+                  </span>
+
+                  <strong>
+                    {firstReplay ?? "—"}
+                  </strong>
+
+                  <small className="allow-text">
+                    fresh evidence
+                  </small>
+                </div>
+
+                <div>
+                  <span>
+                    SECOND USE
+                  </span>
+
+                  <strong>
+                    {decision ?? "—"}
+                  </strong>
+
+                  <small className="block-text">
+                    evidence already used
+                  </small>
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+
+        <section className="raw-inspector">
+          <button
+            className="inspector-toggle"
+            onClick={() =>
+              setInspectorOpen(
+                (current) => !current,
+              )
+            }
+          >
+            <span>
+              INSPECT RAW TRANSACTION
+            </span>
+
+            <span>
+              {inspectorOpen
+                ? "−"
+                : "+"}
+            </span>
+          </button>
+
+          {inspectorOpen && (
+            <div className="inspector-body">
+              <div>
+                <span>SESSION</span>
+                <code>
+                  {session?.sessionId ??
+                    "Run a scenario first"}
+                </code>
+              </div>
+
+              <div>
+                <span>CHAIN ID</span>
+                <code>
+                  {candidate?.chainId ??
+                    "97"}
+                </code>
+              </div>
+
+              <div>
+                <span>RECIPIENT</span>
+                <code>
+                  {candidate?.to ??
+                    displayedCandidateRecipient}
+                </code>
+              </div>
+
+              <div>
+                <span>VALUE</span>
+                <code>
+                  {candidate
+                    ? `${candidate.amountTbnb} tBNB`
+                    : `${displayedCandidateAmount} tBNB`}
+                </code>
+              </div>
+
+              <div>
+                <span>CALLDATA</span>
+                <code>
+                  {candidate?.data ??
+                    "0x"}
+                </code>
+              </div>
+
+              <div>
+                <span>
+                  SIGNER INVOKED
+                </span>
+
+                <code>
+                  {verification
+                    ? String(
+                      verification
+                        .signerInvoked,
+                    )
+                    : replayResult
+                      ? String(
+                        replayResult
+                          .signerInvoked,
+                      )
+                      : "—"}
+                </code>
+              </div>
+
+              <div>
+                <span>BROADCAST</span>
+
+                <code>
+                  {verification
+                    ? String(
+                      verification
+                        .broadcast,
+                    )
+                    : replayResult
+                      ? String(
+                        replayResult
+                          .broadcast,
+                      )
+                      : "—"}
+                </code>
+              </div>
+            </div>
+          )}
+        </section>
+      </main>
+
+      <SiteFooter />
+    </>
+  );
+}
+
+function ProofPage() {
+  const [
+    replayResult,
+    setReplayResult,
+  ] =
+    useState<ReplayResult | null>(
+      null,
+    );
+
+  const [proof, setProof] =
+    useState<OnchainProof | null>(
+      null,
+    );
+
+  const [
+    replayLoading,
+    setReplayLoading,
+  ] = useState(false);
+
+  const [
+    proofLoading,
+    setProofLoading,
+  ] = useState(false);
+
+  const [error, setError] =
+    useState<string | null>(null);
+
+  async function runReplay() {
     try {
-      setTestingReplay(true);
+      setReplayLoading(true);
       setReplayResult(null);
       setError(null);
+
+      const session =
+        await requestJson<Session>(
+          "/api/session",
+          {
+            method: "POST",
+          },
+        );
 
       const result =
         await requestJson<ReplayResult>(
@@ -537,14 +1724,12 @@ function App() {
                 "application/json",
             },
 
-            body:
-              JSON.stringify({
-                sessionId:
-                  session.sessionId,
-
-                transaction:
-                  session.transaction,
-              }),
+            body: JSON.stringify({
+              sessionId:
+                session.sessionId,
+              transaction:
+                session.transaction,
+            }),
           },
         );
 
@@ -556,13 +1741,13 @@ function App() {
           : "Replay test failed.",
       );
     } finally {
-      setTestingReplay(false);
+      setReplayLoading(false);
     }
   }
 
-  async function fetchOnchainProof() {
+  async function fetchProof() {
     try {
-      setLoadingProof(true);
+      setProofLoading(true);
       setError(null);
 
       const result =
@@ -578,1098 +1763,621 @@ function App() {
           : "Unable to read BSC Testnet.",
       );
     } finally {
-      setLoadingProof(false);
+      setProofLoading(false);
     }
   }
 
-  function scrollToWorkspace() {
-    document
-      .getElementById("workspace")
-      ?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-  }
-
-  const decision =
-    verification?.verification.decision;
-
-  const primaryFinding =
-    verification?.verification.findings[0];
-
   return (
-    <div className="app">
-      <header className="topbar">
-        <a
-          className="brand"
-          href="#top"
-        >
-          <span className="brand-mark">
-            B
+    <>
+      <main className="proof-page">
+        <section className="proof-hero">
+          <span className="micro-label">
+            VERIFIABLE PROTOTYPE
           </span>
 
-          <span>BOUND</span>
-        </a>
+          <h1>
+            Don’t trust the demo.
+            <br />
+            Inspect it.
+          </h1>
 
-        <div className="topbar-right">
-          <span className="network-label">
-            BSC TESTNET
-          </span>
-
-          <span
-            className={`api-status ${
-              apiOnline === true
-                ? "online"
-                : apiOnline === false
-                  ? "offline"
-                  : ""
-            }`}
-          >
-            <span className="status-dot" />
-
-            {apiOnline === null
-              ? "Checking API"
-              : apiOnline
-                ? "BOUND API online"
-                : "BOUND API offline"}
-          </span>
-        </div>
-      </header>
-
-      <main id="top">
-        <section className="intro">
-          <div className="intro-copy">
-            <div className="eyebrow">
-              CONTEXT INTEGRITY BEFORE SIGNING
-            </div>
-
-            <h1>
-              Verify what the agent is
-              about to sign.
-            </h1>
-
-            <p>
-              Edit a transaction candidate,
-              send it through the real BOUND
-              verifier, and see whether it is
-              still consistent with signed
-              authorization and upstream
-              evidence.
-            </p>
-
-            <div className="intro-actions">
-              <button
-                className="primary-button"
-                onClick={scrollToWorkspace}
-              >
-                Open verifier
-                <span>↓</span>
-              </button>
-
-              <button
-                className="text-button"
-                onClick={() => {
-                  document
-                    .getElementById(
-                      "onchain-proof",
-                    )
-                    ?.scrollIntoView({
-                      behavior: "smooth",
-                    });
-                }}
-              >
-                View onchain proof
-              </button>
-            </div>
-          </div>
-
-          <div
-            className={`binding-map ${flowState}`}
-          >
-            <div className="binding-source">
-              <span>User mandate</span>
-              <strong>EIP-712</strong>
-            </div>
-
-            <div className="binding-source">
-              <span>Tool evidence</span>
-              <strong>Ed25519</strong>
-            </div>
-
-            <div className="binding-source">
-              <span>
-                Transaction candidate
-              </span>
-              <strong>Editable</strong>
-            </div>
-
-            <div className="binding-lines">
-              <i />
-              <i />
-              <i />
-            </div>
-
-            <div className="bound-node">
-              BOUND
-            </div>
-
-            <div className="signer-line" />
-
-            <div className="signer-node">
-              SIGNER
-            </div>
-          </div>
+          <p>
+            Two claims below are exercised
+            against the actual prototype:
+            replay protection and a real
+            BSC Testnet transaction
+            read-back.
+          </p>
         </section>
 
         {error && (
-          <div className="global-error">
-            <strong>BOUND error</strong>
-            <span>{error}</span>
+          <div className="lab-error">
+            <strong>
+              Request failed.
+            </strong>
 
-            <button
-              onClick={() =>
-                setError(null)
-              }
-            >
-              Dismiss
-            </button>
+            <span>{error}</span>
           </div>
         )}
 
-        <section
-          className="workspace-section"
-          id="workspace"
-        >
-          <div className="section-heading">
+        <section className="proof-row">
+          <div className="proof-copy">
+            <span>01 / REPLAY</span>
+
+            <h2>
+              Same evidence.
+              <br />
+              Second gate.
+            </h2>
+
+            <p>
+              Fresh signed evidence may
+              pass once. Reusing the same
+              evidence identifier must
+              not authorize another
+              signing attempt.
+            </p>
+
+            <button
+              onClick={() =>
+                void runReplay()
+              }
+              disabled={replayLoading}
+            >
+              {replayLoading
+                ? "running…"
+                : "Run replay proof"}
+              <span>→</span>
+            </button>
+          </div>
+
+          <div className="proof-result replay-proof">
             <div>
-              <div className="section-index">
-                01 / VERIFIER
-              </div>
+              <span>FIRST GATE</span>
 
-              <h2>
-                Transaction workspace
-              </h2>
-            </div>
-
-            <div className="session-tools">
-              {session && (
-                <span
-                  className={`session-life ${
-                    sessionExpired
-                      ? "expired"
-                      : ""
-                  }`}
-                >
-                  Session{" "}
-                  {formatRemaining(
-                    remainingMs,
-                  )}
-                </span>
-              )}
-
-              <button
-                className="secondary-button"
-                onClick={
-                  createFreshSession
-                }
-                disabled={
-                  loadingSession
+              <strong
+                className={
+                  replayResult
+                    ?.firstGate
+                    .decision === "ALLOW"
+                    ? "allow-text"
+                    : ""
                 }
               >
-                {loadingSession
-                  ? "Creating…"
-                  : "New session"}
-              </button>
+                {replayResult
+                  ?.firstGate
+                  .decision ?? "—"}
+              </strong>
+
+              <small>
+                {replayResult
+                  ?.firstGate
+                  .findings[0]?.code ??
+                  "fresh evidence"}
+              </small>
             </div>
-          </div>
 
-          <div className="attack-strip">
-            <span className="attack-label">
-              BREAK THIS TRANSACTION
-            </span>
+            <i>→</i>
 
-            <button
-              onClick={mutateRecipient}
-              disabled={!session}
-            >
-              Change recipient
-            </button>
+            <div>
+              <span>
+                SAME EVIDENCE
+              </span>
 
-            <button
-              onClick={mutateAmount}
-              disabled={!session}
-            >
-              Change amount
-            </button>
-
-            <button
-              onClick={mutateNetwork}
-              disabled={!session}
-            >
-              Switch network
-            </button>
-
-            <button
-              onClick={mutateCalldata}
-              disabled={!session}
-            >
-              Attach calldata
-            </button>
-
-            <button
-              onClick={resetCandidate}
-              disabled={!session}
-            >
-              Reset
-            </button>
-          </div>
-
-          <div className="workspace-grid">
-            <article className="workspace-panel context-panel">
-              <header className="panel-header">
-                <div>
-                  <span className="panel-kicker">
-                    TRUSTED CONTEXT
-                  </span>
-
-                  <h3>
-                    Signed reference
-                  </h3>
-                </div>
-
-                <span className="verified-tag">
-                  VERIFIED
-                </span>
-              </header>
-
-              {!session ? (
-                <div className="panel-loading">
-                  {loadingSession
-                    ? "Creating verification session…"
-                    : "No active session."}
-                </div>
-              ) : (
-                <div className="context-records">
-                  <div className="context-block">
-                    <span className="record-type">
-                      USER AUTHORIZATION
-                    </span>
-
-                    <dl>
-                      <div>
-                        <dt>Scheme</dt>
-                        <dd>
-                          {
-                            session
-                              .authorization
-                              .signatureScheme
-                          }
-                        </dd>
-                      </div>
-
-                      <div>
-                        <dt>
-                          Maximum spend
-                        </dt>
-                        <dd>
-                          {
-                            session
-                              .authorization
-                              .maxAmountTbnb
-                          }{" "}
-                          tBNB
-                        </dd>
-                      </div>
-
-                      <div>
-                        <dt>Network</dt>
-                        <dd>
-                          Chain{" "}
-                          {
-                            session
-                              .authorization
-                              .chainId
-                          }
-                        </dd>
-                      </div>
-
-                      <div>
-                        <dt>Signer</dt>
-                        <dd
-                          title={
-                            session
-                              .authorization
-                              .signer
-                          }
-                        >
-                          {shortHex(
-                            session
-                              .authorization
-                              .signer,
-                          )}
-                        </dd>
-                      </div>
-                    </dl>
-                  </div>
-
-                  <div className="context-block">
-                    <span className="record-type">
-                      SIGNED TOOL EVIDENCE
-                    </span>
-
-                    <dl>
-                      <div>
-                        <dt>Source</dt>
-                        <dd>
-                          {
-                            session
-                              .evidence
-                              .sourceId
-                          }
-                        </dd>
-                      </div>
-
-                      <div>
-                        <dt>Amount</dt>
-                        <dd>
-                          {
-                            session
-                              .evidence
-                              .amountTbnb
-                          }{" "}
-                          tBNB
-                        </dd>
-                      </div>
-
-                      <div>
-                        <dt>Recipient</dt>
-                        <dd
-                          title={
-                            session
-                              .evidence
-                              .recipient
-                          }
-                        >
-                          {shortHex(
-                            session
-                              .evidence
-                              .recipient,
-                          )}
-                        </dd>
-                      </div>
-
-                      <div>
-                        <dt>Evidence</dt>
-                        <dd
-                          title={
-                            session
-                              .evidence
-                              .evidenceId
-                          }
-                        >
-                          {shortHex(
-                            session
-                              .evidence
-                              .evidenceId,
-                          )}
-                        </dd>
-                      </div>
-                    </dl>
-                  </div>
-                </div>
-              )}
-            </article>
-
-            <article className="workspace-panel candidate-panel">
-              <header className="panel-header">
-                <div>
-                  <span className="panel-kicker">
-                    TRANSACTION CANDIDATE
-                  </span>
-
-                  <h3>
-                    Edit before verification
-                  </h3>
-                </div>
-
-                <span className="editable-tag">
-                  EDITABLE
-                </span>
-              </header>
-
-              <div className="field-stack">
-                <label>
-                  <span>Recipient</span>
-
-                  <input
-                    value={
-                      candidate.recipient
-                    }
-                    onChange={(event) =>
-                      updateCandidate({
-                        recipient:
-                          event.target
-                            .value,
-                      })
-                    }
-                    spellCheck={false}
-                  />
-                </label>
-
-                <label>
-                  <span>
-                    Amount · tBNB
-                  </span>
-
-                  <input
-                    value={
-                      candidate.amountTbnb
-                    }
-                    onChange={(event) =>
-                      updateCandidate({
-                        amountTbnb:
-                          event.target
-                            .value,
-                      })
-                    }
-                    inputMode="decimal"
-                    spellCheck={false}
-                  />
-                </label>
-
-                <div className="field-row">
-                  <label>
-                    <span>Chain ID</span>
-
-                    <input
-                      value={
-                        candidate.chainId
-                      }
-                      onChange={(event) =>
-                        updateCandidate({
-                          chainId:
-                            event.target
-                              .value,
-                        })
-                      }
-                      inputMode="numeric"
-                    />
-                  </label>
-
-                  <label>
-                    <span>Calldata</span>
-
-                    <input
-                      value={
-                        candidate.calldata
-                      }
-                      onChange={(event) =>
-                        updateCandidate({
-                          calldata:
-                            event.target
-                              .value,
-                        })
-                      }
-                      spellCheck={false}
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <button
-                className="verify-button"
-                onClick={
-                  verifyTransaction
-                }
-                disabled={
-                  !session ||
-                  verifying ||
-                  sessionExpired
+              <strong
+                className={
+                  replayResult
+                    ?.secondGate
+                    .decision === "BLOCK"
+                    ? "block-text"
+                    : ""
                 }
               >
-                {verifying ? (
-                  <>
-                    <span className="spinner" />
-                    BOUND evaluating
-                  </>
-                ) : (
-                  <>
-                    Verify transaction
-                    <span>→</span>
-                  </>
-                )}
-              </button>
-
-              <p className="verify-note">
-                Verification is live.
-                Browser signing and broadcast
-                remain disabled.
-              </p>
-            </article>
-
-            <article
-              className={`workspace-panel decision-panel ${
-                decision
-                  ? decision.toLowerCase()
-                  : ""
-              }`}
-            >
-              <header className="panel-header">
-                <div>
-                  <span className="panel-kicker">
-                    BOUND DECISION
-                  </span>
-
-                  <h3>
-                    Verification result
-                  </h3>
-                </div>
-              </header>
-
-              {verifying ? (
-                <div className="evaluating-state">
-                  <div className="evaluation-line">
-                    <span />
-                  </div>
-
-                  <strong>
-                    Evaluating candidate
-                  </strong>
-
-                  <p>
-                    The transaction is being
-                    checked against the active
-                    authorization and signed
-                    evidence.
-                  </p>
-                </div>
-              ) : !verification ? (
-                <div className="empty-decision">
-                  <span>—</span>
-
-                  <strong>
-                    Not evaluated
-                  </strong>
-
-                  <p>
-                    Edit the candidate or try
-                    a failure preset, then run
-                    verification.
-                  </p>
-                </div>
-              ) : (
-                <div className="decision-content">
-                  <div className="checks">
-                    <div>
-                      <span>Recipient</span>
-                      <ResultMark
-                        ok={
-                          verification
-                            .comparison
-                            .recipient
-                            .matches
-                        }
-                      />
-                    </div>
-
-                    <div>
-                      <span>Amount</span>
-                      <ResultMark
-                        ok={
-                          verification
-                            .comparison
-                            .amount
-                            .matches
-                        }
-                      />
-                    </div>
-
-                    <div>
-                      <span>Network</span>
-                      <ResultMark
-                        ok={
-                          verification
-                            .comparison
-                            .chain
-                            .matches
-                        }
-                      />
-                    </div>
-
-                    <div>
-                      <span>Calldata</span>
-                      <ResultMark
-                        ok={
-                          verification
-                            .comparison
-                            .calldata
-                            .matches
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  <div className="decision-block">
-                    <span>
-                      {
-                        verification
-                          .verification
-                          .decision
-                      }
-                    </span>
-
-                    <strong>
-                      {primaryFinding?.code ??
-                        "NO_FINDING"}
-                    </strong>
-
-                    <p>
-                      {primaryFinding?.message ??
-                        ""}
-                    </p>
-                  </div>
-
-                  {verification
-                    .comparison
-                    .recipient
-                    .matches === false && (
-                    <div className="diff-block">
-                      <div>
-                        <span>Expected</span>
-                        <code>
-                          {shortHex(
-                            verification
-                              .comparison
-                              .recipient
-                              .expected,
-                            12,
-                            10,
-                          )}
-                        </code>
-                      </div>
-
-                      <div>
-                        <span>Received</span>
-                        <code>
-                          {shortHex(
-                            verification
-                              .comparison
-                              .recipient
-                              .actual,
-                            12,
-                            10,
-                          )}
-                        </code>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="boundary-state">
-                    <span>
-                      Signer invoked
-                    </span>
-
-                    <strong>
-                      {verification
-                        .signerInvoked
-                        ? "YES"
-                        : "NO"}
-                    </strong>
-                  </div>
-                </div>
-              )}
-            </article>
-          </div>
-
-          <div
-            className={`signing-flow ${flowState}`}
-          >
-            <div className="flow-item">
-              <span>USER</span>
-              <strong>
-                Authorization
+                {replayResult
+                  ?.secondGate
+                  .decision ?? "—"}
               </strong>
-            </div>
 
-            <div className="flow-link" />
-
-            <div className="flow-item">
-              <span>TOOL</span>
-              <strong>
-                Signed evidence
-              </strong>
-            </div>
-
-            <div className="flow-link" />
-
-            <div className="flow-item bound">
-              <span>BOUND</span>
-              <strong>
-                Integrity gate
-              </strong>
-            </div>
-
-            <div className="flow-link final" />
-
-            <div className="flow-item signer">
-              <span>SIGNER</span>
-              <strong>
-                {flowState === "allow"
-                  ? "Eligible"
-                  : flowState === "block"
-                    ? "Closed"
-                    : "Waiting"}
-              </strong>
+              <small>
+                {replayResult
+                  ?.secondGate
+                  .findings[0]?.code ??
+                  "awaiting proof"}
+              </small>
             </div>
           </div>
         </section>
 
-        <section className="replay-section">
-          <div className="replay-copy">
-            <div className="section-index">
-              02 / REPLAY
-            </div>
+        <section className="proof-row">
+          <div className="proof-copy">
+            <span>
+              02 / ONCHAIN READ-BACK
+            </span>
 
             <h2>
-              Use the same evidence twice.
+              A transaction that
+              actually exists.
             </h2>
 
             <p>
-              This test exercises the real
-              evidence-use store. The first
-              gate may consume fresh evidence;
-              the second attempt must not be
-              reusable.
+              The API reads the fixed
+              transaction hash from BSC
+              Testnet instead of
+              rendering a hard-coded
+              success state.
             </p>
 
             <button
-              className="primary-button dark"
-              onClick={testReplay}
-              disabled={
-                !session ||
-                testingReplay ||
-                Boolean(replayResult) ||
-                sessionExpired
+              onClick={() =>
+                void fetchProof()
               }
+              disabled={proofLoading}
             >
-              {testingReplay
-                ? "Testing replay…"
-                : replayResult
-                  ? "Replay tested"
-                  : "Test replay protection"}
+              {proofLoading
+                ? "reading chain…"
+                : "Read BSC Testnet"}
+              <span>→</span>
             </button>
           </div>
 
-          <div className="replay-record">
-            {!replayResult ? (
-              <div className="replay-empty">
-                <span>01 → 02</span>
-                <p>
-                  Run the same signed evidence
-                  through the execution gate
-                  twice.
-                </p>
+          <div className="proof-result chain-proof">
+            <div className="proof-hash">
+              <span>TRANSACTION</span>
+
+              <code>
+                {shortHex(
+                  PROOF_HASH,
+                  18,
+                  14,
+                )}
+              </code>
+            </div>
+
+            {!proof ? (
+              <div className="await-proof">
+                <span>BSC TESTNET</span>
+
+                <strong>
+                  Awaiting live read
+                </strong>
               </div>
             ) : (
               <>
-                <div className="replay-attempt">
+                <div className="proof-value">
                   <span>
-                    FIRST GATE
+                    CONFIRMED VALUE
                   </span>
 
-                  <strong className="allow-text">
-                    {
-                      replayResult
-                        .firstGate
-                        .decision
-                    }
+                  <strong>
+                    {proof.valueTbnb}
                   </strong>
 
-                  <code>
-                    {
-                      replayResult
-                        .firstGate
-                        .findings[0]
-                        ?.code
-                    }
-                  </code>
+                  <small>tBNB</small>
                 </div>
 
-                <div className="replay-arrow">
-                  →
+                <div className="proof-grid">
+                  <div>
+                    <span>STATUS</span>
+                    <strong className="allow-text">
+                      {proof.receiptStatus}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>BLOCK</span>
+                    <strong>
+                      {proof.blockNumber}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>GAS</span>
+                    <strong>
+                      {proof.gasUsed}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>INPUT</span>
+                    <strong>
+                      {proof.input}
+                    </strong>
+                  </div>
                 </div>
 
-                <div className="replay-attempt">
-                  <span>
-                    SECOND GATE
-                  </span>
-
-                  <strong className="block-text">
-                    {
-                      replayResult
-                        .secondGate
-                        .decision
-                    }
-                  </strong>
-
-                  <code>
-                    {
-                      replayResult
-                        .secondGate
-                        .findings[0]
-                        ?.code
-                    }
-                  </code>
-                </div>
+                <a
+                  href={`https://testnet.bscscan.com/tx/${proof.hash}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open BscScan ↗
+                </a>
               </>
             )}
           </div>
         </section>
+      </main>
 
-        <section
-          className="proof-section"
-          id="onchain-proof"
-        >
-          <div className="section-heading proof-heading">
-            <div>
-              <div className="section-index">
-                03 / ONCHAIN PROOF
-              </div>
+      <SiteFooter />
+    </>
+  );
+}
 
-              <h2>
-                Read the transaction from
-                BSC Testnet.
-              </h2>
-            </div>
+function DocsPage() {
+  return (
+    <>
+      <main className="docs-page">
+        <aside className="docs-sidebar">
+          <span>BOUND DOCS</span>
 
-            <button
-              className="secondary-button"
-              onClick={
-                fetchOnchainProof
-              }
-              disabled={loadingProof}
-            >
-              {loadingProof
-                ? "Reading chain…"
-                : proof
-                  ? "Refresh proof"
-                  : "Fetch live proof"}
-            </button>
-          </div>
+          <nav>
+            <a href="#overview">
+              Overview
+            </a>
 
-          <div className="proof-layout">
-            <div className="proof-hash">
-              <span>
-                RECORDED TRANSACTION
-              </span>
+            <a href="#binding">
+              What is bound
+            </a>
 
-              <code>
-                {PROOF_HASH}
-              </code>
+            <a href="#trust">
+              Trust model
+            </a>
 
-              <p>
-                The record below is fetched
-                through the BOUND API from
-                BSC Testnet when requested.
-              </p>
-            </div>
+            <a href="#decisions">
+              Decisions
+            </a>
 
-            <div className="proof-record">
-              {!proof ? (
-                <div className="proof-empty">
-                  <span>CHAIN READ</span>
+            <a href="#replay">
+              Replay model
+            </a>
 
-                  <strong>
-                    Not fetched yet
-                  </strong>
+            <a href="#scope">
+              Prototype scope
+            </a>
 
-                  <p>
-                    Fetch the record to verify
-                    the transaction currently
-                    exists on BSC Testnet.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="proof-status">
-                    <span className="chain-dot" />
+            <a href="#non-goals">
+              Non-goals
+            </a>
+          </nav>
+        </aside>
 
-                    <span>
-                      {
-                        proof.receiptStatus
-                      }
-                    </span>
+        <article className="docs-content">
+          <section id="overview">
+            <span className="micro-label">
+              THE DESIGN
+            </span>
 
-                    <strong>
-                      {proof.valueTbnb} tBNB
-                    </strong>
-                  </div>
+            <h1>
+              Context integrity before
+              execution.
+            </h1>
 
-                  <dl className="proof-table">
-                    <div>
-                      <dt>Network</dt>
-                      <dd>
-                        {proof.network}
-                      </dd>
-                    </div>
+            <p className="docs-lead">
+              BOUND verifies whether the
+              exact transaction an
+              autonomous agent wants to
+              sign still agrees with
+              trusted authorization and
+              signed upstream evidence.
+            </p>
+          </section>
 
-                    <div>
-                      <dt>Block</dt>
-                      <dd>
-                        {
-                          proof.blockNumber
-                        }
-                      </dd>
-                    </div>
+          <section id="binding">
+            <h2>
+              What BOUND binds
+            </h2>
 
-                    <div>
-                      <dt>From</dt>
-                      <dd
-                        title={
-                          proof.from
-                        }
-                      >
-                        {shortHex(
-                          proof.from,
-                          12,
-                          10,
-                        )}
-                      </dd>
-                    </div>
+            <p>
+              The native tBNB prototype
+              compares the
+              transaction-critical
+              fields that determine what
+              will execute: chain,
+              recipient, amount, and
+              calldata.
+            </p>
 
-                    <div>
-                      <dt>To</dt>
-                      <dd
-                        title={
-                          proof.to ?? ""
-                        }
-                      >
-                        {proof.to
-                          ? shortHex(
-                              proof.to,
-                              12,
-                              10,
-                            )
-                          : "—"}
-                      </dd>
-                    </div>
-
-                    <div>
-                      <dt>Input</dt>
-                      <dd>{proof.input}</dd>
-                    </div>
-
-                    <div>
-                      <dt>Gas used</dt>
-                      <dd>
-                        {proof.gasUsed}
-                      </dd>
-                    </div>
-                  </dl>
-
-                  <a
-                    className="bscscan-link"
-                    href={`https://testnet.bscscan.com/tx/${proof.hash}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open BscScan ↗
-                  </a>
-                </>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className="details-section">
-          <details>
-            <summary>
-              Technical details
-              <span>+</span>
-            </summary>
-
-            <div className="details-grid">
+            <div className="docs-spec">
               <div>
-                <span>
-                  USER AUTHORIZATION
-                </span>
-
+                <span>USER</span>
                 <strong>EIP-712</strong>
 
                 <p>
-                  A trusted user signer
-                  authorizes the resource,
-                  network, source and maximum
-                  spend for a bounded period.
+                  A time-bounded spending
+                  authorization signed by
+                  the user.
                 </p>
               </div>
 
               <div>
-                <span>
-                  TOOL PROVENANCE
-                </span>
-
+                <span>TOOL</span>
                 <strong>Ed25519</strong>
 
                 <p>
-                  Signed upstream evidence is
-                  checked against the pinned
-                  trusted source key.
+                  Evidence from a trusted
+                  source whose public key
+                  is pinned independently.
                 </p>
               </div>
 
               <div>
-                <span>
-                  TRANSACTION BINDING
-                </span>
-
+                <span>AGENT</span>
                 <strong>
-                  Exact critical fields
+                  Transaction
                 </strong>
 
                 <p>
-                  Chain, recipient, value and
-                  calldata are checked before
-                  the transaction reaches the
-                  signing boundary.
-                </p>
-              </div>
-
-              <div>
-                <span>
-                  CURRENT LIMIT
-                </span>
-
-                <strong>
-                  Consistency, not global
-                  safety
-                </strong>
-
-                <p>
-                  BOUND does not determine
-                  whether a trusted tool is
-                  honest or whether a
-                  recipient is a scam.
+                  The exact candidate
+                  transaction presented
+                  before the signer
+                  boundary.
                 </p>
               </div>
             </div>
-          </details>
-        </section>
+          </section>
+
+          <section id="trust">
+            <h2>Trust model</h2>
+
+            <p>
+              BOUND does not infer trust
+              from a source name. The
+              source identifier is a
+              label; the trust anchor is
+              the pinned public key used
+              to verify the evidence
+              signature.
+            </p>
+
+            <p>
+              The user authorization is
+              checked against an
+              independently trusted signer
+              address rather than accepting
+              any signer supplied by the
+              request itself.
+            </p>
+
+            <aside className="docs-note">
+              If a trusted tool itself is
+              compromised and signs a
+              malicious recipient, BOUND
+              can still verify consistency.
+              It cannot prove that the
+              trusted source was honest.
+            </aside>
+          </section>
+
+          <section id="decisions">
+            <h2>
+              Decision semantics
+            </h2>
+
+            <div className="decision-doc">
+              <div>
+                <strong className="allow-text">
+                  ALLOW
+                </strong>
+
+                <p>
+                  The implemented
+                  provenance and
+                  authorization checks
+                  passed.
+                </p>
+              </div>
+
+              <div>
+                <strong className="block-text">
+                  BLOCK
+                </strong>
+
+                <p>
+                  At least one required
+                  transaction-critical
+                  field violated the
+                  trusted context.
+                </p>
+              </div>
+
+              <div>
+                <strong>
+                  NEEDS_REAUTHORIZATION
+                </strong>
+
+                <p>
+                  The transaction cannot
+                  proceed under the
+                  current authorization.
+                </p>
+              </div>
+            </div>
+
+            <aside className="docs-note">
+              ALLOW is not a claim that a
+              transaction is globally
+              safe.
+            </aside>
+          </section>
+
+          <section id="replay">
+            <h2>Replay model</h2>
+
+            <p>
+              Signed tool evidence is
+              consumed only when the
+              signing gate returns ALLOW.
+              The local evidence-use
+              store records the evidence
+              identifier so the same
+              evidence cannot authorize a
+              second signing attempt.
+            </p>
+
+            <p>
+              The current prototype uses
+              a local filesystem store.
+              It is not a distributed
+              replay database.
+            </p>
+          </section>
+
+          <section id="scope">
+            <h2>
+              Current prototype scope
+            </h2>
+
+            <p>
+              The browser experience
+              demonstrates native tBNB
+              verification on BNB Smart
+              Chain Testnet. Browser
+              verification does not
+              receive the agent wallet
+              private key.
+            </p>
+
+            <p>
+              A separate guarded signer
+              implementation exists for
+              controlled server-side
+              execution after the same
+              authorization and evidence
+              checks pass.
+            </p>
+          </section>
+
+          <section id="non-goals">
+            <h2>Non-goals</h2>
+
+            <p>
+              The prototype does not
+              claim to stop every form of
+              prompt injection, detect
+              scams, determine whether a
+              trusted tool is honest, or
+              establish universal
+              transaction safety.
+            </p>
+
+            <p>
+              Its responsibility is
+              narrower: preserve the
+              integrity of
+              transaction-critical
+              context immediately before
+              signing.
+            </p>
+          </section>
+        </article>
       </main>
 
-      <footer>
-        <span>
-          BOUND
+      <SiteFooter />
+    </>
+  );
+}
+
+function NotFoundPage() {
+  return (
+    <>
+      <main className="not-found">
+        <span className="micro-label">
+          404
         </span>
 
-        <p>
-          Context integrity before execution.
-        </p>
+        <h1>
+          Nothing is bound here.
+        </h1>
 
-        <span>
-          Prototype · BSC Testnet
-        </span>
-      </footer>
+        <RouteLink
+          to="/"
+          className="primary-link"
+        >
+          Return home
+          <span>←</span>
+        </RouteLink>
+      </main>
+
+      <SiteFooter />
+    </>
+  );
+}
+
+function App() {
+  const [path, setPath] =
+    useState(
+      window.location.pathname,
+    );
+
+  const [apiOnline, setApiOnline] =
+    useState<boolean | null>(null);
+
+  useEffect(() => {
+    function onPopState() {
+      setPath(
+        window.location.pathname,
+      );
+    }
+
+    window.addEventListener(
+      "popstate",
+      onPopState,
+    );
+
+    return () =>
+      window.removeEventListener(
+        "popstate",
+        onPopState,
+      );
+  }, []);
+
+  useEffect(() => {
+    async function checkHealth() {
+      try {
+        await requestJson(
+          "/api/health",
+        );
+
+        setApiOnline(true);
+      } catch {
+        setApiOnline(false);
+      }
+    }
+
+    void checkHealth();
+  }, []);
+
+  let page: ReactNode;
+
+  switch (path) {
+    case "/":
+      page = <HomePage />;
+      break;
+
+    case "/app":
+      page = <ExecutionLabPage />;
+      break;
+
+    case "/proof":
+      page = <ProofPage />;
+      break;
+
+    case "/docs":
+      page = <DocsPage />;
+      break;
+
+    default:
+      page = <NotFoundPage />;
+  }
+
+  return (
+    <div className="site-shell">
+      <SiteHeader
+        path={path}
+        apiOnline={apiOnline}
+      />
+
+      {page}
     </div>
   );
 }

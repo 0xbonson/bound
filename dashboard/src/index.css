@@ -1,14 +1,21 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Manrope:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap");
+
 html {
+  min-width: 320px;
+  min-height: 100%;
+
   font-family:
-    Inter,
-    ui-sans-serif,
+    "Manrope",
     -apple-system,
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
+
   font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  background: #f3f1ea;
+  text-rendering:
+    optimizeLegibility;
+
+  background: #090807;
 }
 
 body {
@@ -24,24 +31,22 @@ select {
 }
 
 ::selection {
-  background: #d9e0e6;
-  color: #151515;
+  background: #c9633e;
+  color: #090807;
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #ece9e1;
+  background: #090807;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #bdb8ad;
-  border: 2px solid #ece9e1;
+  background: #3a3029;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #9f9a90;
+  background: #57483e;
 }
