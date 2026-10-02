@@ -1,5 +1,5 @@
 html {
-  background: #f6f5f1;
+  background: #f4f2ec;
 }
 
 body {
@@ -35,9 +35,18 @@ select {
   font: inherit;
 }
 
+code,
+pre {
+  font-family:
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+}
+
 ::selection {
-  background: #d9e1ea;
-  color: #181817;
+  background: #d8dee5;
+  color: #141414;
 }
 
 ::-webkit-scrollbar {
@@ -45,19 +54,19 @@ select {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f6f5f1;
+  background: #f4f2ec;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbc8c0;
+  background: #c7c4bb;
 
   border:
     2px solid
-    #f6f5f1;
+    #f4f2ec;
 
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #aaa79f;
+  background: #aaa79e;
 }

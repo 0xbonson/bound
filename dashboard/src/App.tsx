@@ -1,13 +1,15 @@
 import { useState } from "react";
 import "./App.css";
 
-type Scenario = "safe" | "corrupted";
+type Scenario =
+  | "normal"
+  | "corrupted";
 
 const USER_SIGNER =
   "0x191a34ea60cbEa9496423D9e0cdF1943b0433D85";
 
 const AGENT_WALLET =
-  "0x6fa2f4360a04c88d98f6a70d1dda9653d856ce90";
+  "0x6fa2f4360a04c88d98F6A70D1Dda9653D856ce90";
 
 const TRUSTED_RECIPIENT =
   "0x32438de3179df205c63e8793a20ba6885762f537";
@@ -23,47 +25,20 @@ const EXPLORER_URL =
 
 function shorten(
   value: string,
-  front = 8,
-  back = 6,
+  front = 9,
+  back = 7,
 ) {
-  return `${value.slice(0, front)}…${value.slice(-back)}`;
-}
+  if (
+    value.length <=
+    front + back + 1
+  ) {
+    return value;
+  }
 
-function CheckIcon() {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      aria-hidden="true"
-      className="icon"
-    >
-      <path
-        d="m4.7 10.2 3.1 3.2 7.5-7.6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      aria-hidden="true"
-      className="icon"
-    >
-      <path
-        d="m6 6 8 8M14 6l-8 8"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return `${value.slice(
+    0,
+    front,
+  )}…${value.slice(-back)}`;
 }
 
 function ArrowIcon() {
@@ -77,7 +52,7 @@ function ArrowIcon() {
         d="M4 10h11m-3.5-3.5L15 10l-3.5 3.5"
         fill="none"
         stroke="currentColor"
-        strokeWidth="1.6"
+        strokeWidth="1.55"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -93,14 +68,15 @@ function ExternalIcon() {
       className="icon"
     >
       <path
-        d="M11.5 4H16v4.5M16 4l-7.2 7.2"
+        d="M11.7 4H16v4.3M16 4l-7.1 7.1"
         fill="none"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
       />
+
       <path
-        d="M14.7 10.5v4.2A1.3 1.3 0 0 1 13.4 16H5.3A1.3 1.3 0 0 1 4 14.7V6.6a1.3 1.3 0 0 1 1.3-1.3h4.2"
+        d="M14.6 10.7v4a1.3 1.3 0 0 1-1.3 1.3h-8A1.3 1.3 0 0 1 4 14.7v-8a1.3 1.3 0 0 1 1.3-1.3h4"
         fill="none"
         stroke="currentColor"
         strokeWidth="1.5"
@@ -109,12 +85,55 @@ function ExternalIcon() {
   );
 }
 
+function CheckIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      className="status-icon"
+    >
+      <path
+        d="m4.8 10.1 3.1 3.2 7.3-7.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CrossIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      className="status-icon"
+    >
+      <path
+        d="m6 6 8 8M14 6l-8 8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function App() {
-  const [scenario, setScenario] =
-    useState<Scenario>("safe");
+  const [
+    scenario,
+    setScenario,
+  ] =
+    useState<Scenario>(
+      "normal",
+    );
 
   const corrupted =
-    scenario === "corrupted";
+    scenario ===
+    "corrupted";
 
   const proposedRecipient =
     corrupted
@@ -125,339 +144,307 @@ function App() {
     <div className="page">
       <header className="header">
         <a
-          className="brand"
           href="#top"
+          className="brand"
+          aria-label="BOUND"
         >
-          <span className="brand-symbol">
+          <span className="brand-mark">
             B
           </span>
 
-          <span>
+          <span className="brand-name">
             BOUND
           </span>
         </a>
 
-        <nav className="navigation">
-          <a href="#product">
-            Product
+        <nav
+          className="nav"
+          aria-label="Primary navigation"
+        >
+          <a href="#case">
+            The case
           </a>
 
-          <a href="#how">
-            How it works
+          <a href="#verifier">
+            Verifier
           </a>
 
-          <a href="#proof">
-            Verification proof
+          <a href="#record">
+            Onchain record
           </a>
         </nav>
 
-        <div className="header-status">
+        <div className="environment">
           BSC Testnet
         </div>
       </header>
 
       <main id="top">
-        <section className="hero">
-          <div className="hero-copy">
-            <div className="overline">
-              Context integrity for
-              autonomous transactions
-            </div>
-
-            <h1>
-              Keep the transaction aligned
-              with the evidence.
-            </h1>
-
-            <p className="hero-description">
-              BOUND verifies the user’s
-              authorization, trusted upstream
-              evidence, and the exact
-              transaction an AI agent submits
-              before signing is allowed.
+        <section className="intro">
+          <div className="intro-main">
+            <p className="intro-label">
+              Context integrity before
+              signing
             </p>
 
-            <div className="hero-actions">
+            <h1>
+              Verify the transaction before
+              the agent signs it.
+            </h1>
+
+            <p className="intro-description">
+              BOUND checks whether an
+              autonomous agent’s transaction
+              still agrees with the user
+              authorization and signed
+              upstream evidence.
+            </p>
+
+            <div className="intro-actions">
               <a
-                href="#product"
-                className="primary-button"
+                href="#verifier"
+                className="primary-action"
               >
-                Explore the verifier
+                Open the verifier
                 <ArrowIcon />
               </a>
 
               <a
-                href="#proof"
-                className="secondary-button"
+                href="#record"
+                className="text-action"
               >
-                View testnet proof
+                View testnet record
               </a>
             </div>
-
-            <p className="hero-note">
-              Prototype environment · BNB
-              Smart Chain Testnet
-            </p>
           </div>
 
-          <div className="hero-review">
-            <div className="review-card">
-              <div className="review-card-header">
-                <div>
-                  <span className="eyebrow">
-                    PRE-SIGN REVIEW
-                  </span>
-
-                  <h2>
-                    Transaction cleared
-                  </h2>
-                </div>
-
-                <div className="decision-badge success-badge">
-                  Approved
-                </div>
-              </div>
-
-              <div className="review-summary">
-                <div>
-                  <span>
-                    Purchase
-                  </span>
-
-                  <strong>
-                    BNB market report
-                  </strong>
-                </div>
-
-                <div>
-                  <span>
-                    Amount
-                  </span>
-
-                  <strong>
-                    0.001 tBNB
-                  </strong>
-                </div>
-
-                <div>
-                  <span>
-                    Network
-                  </span>
-
-                  <strong>
-                    BSC Testnet
-                  </strong>
-                </div>
-              </div>
-
-              <div className="review-checks">
-                <div className="review-check">
-                  <div className="review-check-icon">
-                    <CheckIcon />
-                  </div>
-
-                  <div>
-                    <strong>
-                      User authorization
-                    </strong>
-
-                    <span>
-                      EIP-712 mandate verified
-                    </span>
-                  </div>
-                </div>
-
-                <div className="review-check">
-                  <div className="review-check-icon">
-                    <CheckIcon />
-                  </div>
-
-                  <div>
-                    <strong>
-                      Trusted evidence
-                    </strong>
-
-                    <span>
-                      Tool signature verified
-                    </span>
-                  </div>
-                </div>
-
-                <div className="review-check">
-                  <div className="review-check-icon">
-                    <CheckIcon />
-                  </div>
-
-                  <div>
-                    <strong>
-                      Transaction details
-                    </strong>
-
-                    <span>
-                      Recipient and amount match
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="review-footer">
+          <aside className="intro-record">
+            <div className="record-heading">
+              <div>
                 <span>
-                  Eligible to reach signer
+                  Pre-sign review
                 </span>
 
                 <strong>
-                  ALLOW
+                  BNB market report
+                </strong>
+              </div>
+
+              <div className="record-state">
+                cleared
+              </div>
+            </div>
+
+            <div className="record-fields">
+              <div className="record-field">
+                <span>
+                  User limit
+                </span>
+
+                <strong>
+                  0.005 tBNB
+                </strong>
+              </div>
+
+              <div className="record-field">
+                <span>
+                  Requested
+                </span>
+
+                <strong>
+                  0.001 tBNB
+                </strong>
+              </div>
+
+              <div className="record-field">
+                <span>
+                  Network
+                </span>
+
+                <strong>
+                  BSC Testnet
                 </strong>
               </div>
             </div>
-          </div>
+
+            <div className="record-checks">
+              <div>
+                <span className="check-dot">
+                  <CheckIcon />
+                </span>
+
+                <p>
+                  <strong>
+                    User mandate
+                  </strong>
+
+                  <span>
+                    Signature verified
+                  </span>
+                </p>
+              </div>
+
+              <div>
+                <span className="check-dot">
+                  <CheckIcon />
+                </span>
+
+                <p>
+                  <strong>
+                    Trusted quote
+                  </strong>
+
+                  <span>
+                    Source verified
+                  </span>
+                </p>
+              </div>
+
+              <div>
+                <span className="check-dot">
+                  <CheckIcon />
+                </span>
+
+                <p>
+                  <strong>
+                    Agent transaction
+                  </strong>
+
+                  <span>
+                    Critical fields match
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="record-decision">
+              <span>
+                Eligible to reach signer
+              </span>
+
+              <strong>
+                ALLOW
+              </strong>
+            </div>
+          </aside>
         </section>
 
-        <section className="principles">
-          <div className="principle">
-            <span className="principle-index">
+        <section
+          className="case"
+          id="case"
+        >
+          <div className="section-heading">
+            <span className="section-index">
               01
             </span>
 
             <div>
-              <strong>
-                User-bound
-              </strong>
-
               <p>
-                The spending mandate comes
-                from a verified user signer,
-                not from the agent itself.
+                The case
               </p>
+
+              <h2>
+                The amount can stay valid
+                while the destination changes.
+              </h2>
             </div>
           </div>
 
-          <div className="principle">
-            <span className="principle-index">
-              02
-            </span>
-
-            <div>
-              <strong>
-                Evidence-bound
-              </strong>
-
+          <div className="case-body">
+            <div className="case-copy">
               <p>
-                Transaction-critical values
-                are checked against signed
-                upstream evidence.
-              </p>
-            </div>
-          </div>
-
-          <div className="principle">
-            <span className="principle-index">
-              03
-            </span>
-
-            <div>
-              <strong>
-                Signer-bound
-              </strong>
-
-              <p>
-                Verification runs again at
-                the final boundary before the
-                signing key is accessed.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="problem">
-          <div className="section-heading">
-            <span className="section-label">
-              The problem
-            </span>
-
-            <h2>
-              A correct spending limit can
-              still authorize the wrong
-              destination.
-            </h2>
-          </div>
-
-          <div className="problem-layout">
-            <div className="problem-copy">
-              <p>
-                An autonomous agent may receive
-                a legitimate payment quote,
-                but the context used to build
-                its transaction can change
-                before signing.
+                The trusted tool returns a
+                legitimate payment quote.
+                Somewhere between that tool
+                output and the transaction
+                builder, the recipient visible
+                to the model changes.
               </p>
 
               <p>
-                BOUND does not ask the model
-                to judge whether its own
-                transaction is trustworthy.
-                It compares the transaction
-                against independently trusted
-                context.
+                A simple spending limit still
+                sees an allowed amount. BOUND
+                verifies where that amount is
+                actually being sent.
               </p>
             </div>
 
-            <div className="difference-card">
-              <div className="difference-row">
-                <div>
-                  <span>
-                    Trusted evidence
-                  </span>
+            <div className="binding-example">
+              <div className="binding-column">
+                <span className="binding-label">
+                  Signed evidence
+                </span>
 
-                  <strong>
-                    Vendor recipient
-                  </strong>
-                </div>
+                <strong>
+                  Vendor recipient
+                </strong>
 
-                <div className="address">
+                <span
+                  className="binding-address"
+                  title={
+                    TRUSTED_RECIPIENT
+                  }
+                >
                   {shorten(
                     TRUSTED_RECIPIENT,
-                    12,
-                    8,
+                    13,
+                    9,
                   )}
-                </div>
+                </span>
+
+                <small>
+                  0.001 tBNB · chain 97
+                </small>
               </div>
 
-              <div className="difference-divider">
-                context changed
-              </div>
+              <div className="binding-center">
+                <span>
+                  bound
+                </span>
 
-              <div className="difference-row altered">
-                <div>
-                  <span>
-                    Agent context
-                  </span>
-
-                  <strong>
-                    Proposed recipient
-                  </strong>
+                <div className="binding-line">
+                  <i />
                 </div>
 
-                <div className="address">
+                <strong>
+                  recipient differs
+                </strong>
+              </div>
+
+              <div className="binding-column altered-column">
+                <span className="binding-label">
+                  Agent proposal
+                </span>
+
+                <strong>
+                  Proposed recipient
+                </strong>
+
+                <span
+                  className="binding-address altered-address"
+                  title={
+                    CORRUPTED_RECIPIENT
+                  }
+                >
                   {shorten(
                     CORRUPTED_RECIPIENT,
-                    12,
-                    8,
+                    13,
+                    9,
                   )}
-                </div>
+                </span>
+
+                <small>
+                  0.001 tBNB · chain 97
+                </small>
               </div>
 
-              <div className="difference-result">
-                <div>
-                  <CloseIcon />
-                </div>
-
+              <div className="binding-outcome">
                 <span>
                   Recipient mismatch
                 </span>
 
                 <strong>
-                  Execution blocked
+                  BLOCK
                 </strong>
               </div>
             </div>
@@ -465,51 +452,60 @@ function App() {
         </section>
 
         <section
-          className="product"
-          id="product"
+          className="verifier"
+          id="verifier"
         >
-          <div className="product-heading">
+          <div className="section-heading verifier-heading">
+            <span className="section-index">
+              02
+            </span>
+
             <div>
-              <span className="section-label">
-                Product
-              </span>
+              <p>
+                Verifier
+              </p>
 
               <h2>
-                Review what the agent is
-                actually about to sign.
+                Review the exact transaction
+                that reaches the signing
+                boundary.
               </h2>
             </div>
 
-            <p>
-              Switch between the normal and
-              corrupted scenarios to inspect
-              how the same payment request is
-              evaluated.
-            </p>
+            <div className="heading-note">
+              Scenario viewer. Browser
+              broadcast is disabled.
+            </div>
           </div>
 
-          <div className="workspace">
-            <div className="workspace-header">
-              <div className="workspace-title">
+          <div className="review-sheet">
+            <div className="sheet-header">
+              <div>
                 <strong>
                   Transaction review
                 </strong>
 
                 <span>
-                  Scenario preview
+                  BNB market report
                 </span>
               </div>
 
-              <div className="scenario-tabs">
+              <div
+                className="scenario-selector"
+                role="group"
+                aria-label="Scenario"
+              >
                 <button
                   type="button"
                   className={
                     !corrupted
-                      ? "scenario-tab active"
-                      : "scenario-tab"
+                      ? "scenario-button selected"
+                      : "scenario-button"
                   }
                   onClick={() =>
-                    setScenario("safe")
+                    setScenario(
+                      "normal",
+                    )
                   }
                 >
                   Normal
@@ -519,8 +515,8 @@ function App() {
                   type="button"
                   className={
                     corrupted
-                      ? "scenario-tab active danger-tab"
-                      : "scenario-tab"
+                      ? "scenario-button selected corrupted-button"
+                      : "scenario-button"
                   }
                   onClick={() =>
                     setScenario(
@@ -533,22 +529,24 @@ function App() {
               </div>
             </div>
 
-            <div className="workspace-body">
-              <div className="transaction-overview">
-                <div className="panel-title">
-                  Transaction context
+            <div className="sheet-body">
+              <div className="sheet-context">
+                <div className="sheet-column-label">
+                  Context
                 </div>
 
-                <div className="context-section">
-                  <div className="context-heading">
-                    User mandate
+                <div className="context-record">
+                  <div className="context-record-heading">
+                    <strong>
+                      User authorization
+                    </strong>
 
-                    <span className="verified-label">
+                    <span className="quiet-valid">
                       verified
                     </span>
                   </div>
 
-                  <div className="context-grid">
+                  <div className="context-pairs">
                     <div>
                       <span>
                         Resource
@@ -561,7 +559,7 @@ function App() {
 
                     <div>
                       <span>
-                        Maximum
+                        Spend limit
                       </span>
 
                       <strong>
@@ -581,7 +579,7 @@ function App() {
 
                     <div>
                       <span>
-                        Authorization
+                        Signature
                       </span>
 
                       <strong>
@@ -591,17 +589,19 @@ function App() {
                   </div>
                 </div>
 
-                <div className="context-section">
-                  <div className="context-heading">
-                    Trusted quote
+                <div className="context-record">
+                  <div className="context-record-heading">
+                    <strong>
+                      Trusted quote
+                    </strong>
 
-                    <span className="verified-label">
+                    <span className="quiet-valid">
                       verified
                     </span>
                   </div>
 
-                  <div className="context-grid">
-                    <div className="wide-context">
+                  <div className="context-pairs">
+                    <div className="pair-wide">
                       <span>
                         Recipient
                       </span>
@@ -613,7 +613,7 @@ function App() {
                       >
                         {shorten(
                           TRUSTED_RECIPIENT,
-                          14,
+                          15,
                           10,
                         )}
                       </strong>
@@ -634,18 +634,20 @@ function App() {
                 <div
                   className={
                     corrupted
-                      ? "context-section agent-context mismatch-context"
-                      : "context-section agent-context"
+                      ? "context-record proposal-record proposal-mismatch"
+                      : "context-record proposal-record"
                   }
                 >
-                  <div className="context-heading">
-                    Agent proposal
+                  <div className="context-record-heading">
+                    <strong>
+                      Agent proposal
+                    </strong>
 
                     <span
                       className={
                         corrupted
-                          ? "mismatch-label"
-                          : "verified-label"
+                          ? "quiet-error"
+                          : "quiet-valid"
                       }
                     >
                       {corrupted
@@ -654,8 +656,8 @@ function App() {
                     </span>
                   </div>
 
-                  <div className="context-grid">
-                    <div className="wide-context">
+                  <div className="context-pairs">
+                    <div className="pair-wide">
                       <span>
                         Recipient
                       </span>
@@ -663,7 +665,7 @@ function App() {
                       <strong
                         className={
                           corrupted
-                            ? "danger-text"
+                            ? "error-text"
                             : ""
                         }
                         title={
@@ -672,7 +674,7 @@ function App() {
                       >
                         {shorten(
                           proposedRecipient,
-                          14,
+                          15,
                           10,
                         )}
                       </strong>
@@ -691,57 +693,57 @@ function App() {
                 </div>
               </div>
 
-              <div className="verification-panel">
-                <div className="panel-title">
+              <div className="sheet-verification">
+                <div className="sheet-column-label">
                   Verification
                 </div>
 
-                <div className="verification-list">
-                  <div className="verification-row">
+                <div className="verification-table">
+                  <div className="verification-line">
                     <span>
                       User signer
                     </span>
 
-                    <strong className="pass">
+                    <strong className="verified-result">
                       <CheckIcon />
-                      Valid
+                      valid
                     </strong>
                   </div>
 
-                  <div className="verification-row">
+                  <div className="verification-line">
                     <span>
                       Resource
                     </span>
 
-                    <strong className="pass">
+                    <strong className="verified-result">
                       <CheckIcon />
-                      Match
+                      match
                     </strong>
                   </div>
 
-                  <div className="verification-row">
+                  <div className="verification-line">
                     <span>
                       Network
                     </span>
 
-                    <strong className="pass">
+                    <strong className="verified-result">
                       <CheckIcon />
-                      Match
+                      match
                     </strong>
                   </div>
 
-                  <div className="verification-row">
+                  <div className="verification-line">
                     <span>
                       Amount
                     </span>
 
-                    <strong className="pass">
+                    <strong className="verified-result">
                       <CheckIcon />
-                      Match
+                      match
                     </strong>
                   </div>
 
-                  <div className="verification-row">
+                  <div className="verification-line">
                     <span>
                       Recipient
                     </span>
@@ -749,19 +751,19 @@ function App() {
                     <strong
                       className={
                         corrupted
-                          ? "fail"
-                          : "pass"
+                          ? "failed-result"
+                          : "verified-result"
                       }
                     >
                       {corrupted ? (
                         <>
-                          <CloseIcon />
-                          Mismatch
+                          <CrossIcon />
+                          mismatch
                         </>
                       ) : (
                         <>
                           <CheckIcon />
-                          Match
+                          match
                         </>
                       )}
                     </strong>
@@ -771,12 +773,12 @@ function App() {
                 <div
                   className={
                     corrupted
-                      ? "final-decision denied"
-                      : "final-decision approved"
+                      ? "decision decision-block"
+                      : "decision decision-allow"
                   }
                 >
                   <span>
-                    Final decision
+                    Decision
                   </span>
 
                   <strong>
@@ -785,14 +787,20 @@ function App() {
                       : "ALLOW"}
                   </strong>
 
+                  <small>
+                    {corrupted
+                      ? "RECIPIENT_PROVENANCE_BREAK"
+                      : "PROVENANCE_VERIFIED"}
+                  </small>
+
                   <p>
                     {corrupted
-                      ? "The proposed recipient differs from the recipient in the signed quote. The signer is not invoked."
-                      : "The transaction agrees with the user mandate and the signed quote. It may proceed to the signer."}
+                      ? "The recipient in the agent transaction differs from the recipient in the signed evidence. The signing executor is not invoked."
+                      : "Transaction-critical fields agree with the user authorization and signed evidence. The transaction is eligible to reach the signer."}
                   </p>
                 </div>
 
-                <div className="execution-summary">
+                <div className="execution-table">
                   <div>
                     <span>
                       Signer
@@ -800,162 +808,86 @@ function App() {
 
                     <strong>
                       {corrupted
-                        ? "Not invoked"
-                        : "Eligible"}
+                        ? "not invoked"
+                        : "eligible"}
                     </strong>
                   </div>
 
                   <div>
                     <span>
-                      Result
+                      Transaction
                     </span>
 
                     <strong>
                       {corrupted
-                        ? "No transaction"
-                        : "Ready"}
+                        ? "none"
+                        : "ready"}
                     </strong>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="workspace-note">
-              Scenario interface only.
-              Browser-side transaction
-              broadcast is intentionally
-              disabled.
-            </div>
-          </div>
-        </section>
-
-        <section
-          className="how"
-          id="how"
-        >
-          <div className="how-heading">
-            <span className="section-label">
-              How it works
-            </span>
-
-            <h2>
-              One verification boundary,
-              three independent inputs.
-            </h2>
-          </div>
-
-          <div className="process">
-            <div className="process-step">
-              <div className="process-number">
-                1
-              </div>
-
-              <div>
-                <strong>
-                  User authorization
-                </strong>
-
-                <p>
-                  A time-bounded EIP-712
-                  mandate defines what the
-                  agent may purchase.
-                </p>
-              </div>
-            </div>
-
-            <div className="process-line" />
-
-            <div className="process-step">
-              <div className="process-number">
-                2
-              </div>
-
-              <div>
-                <strong>
-                  Signed evidence
-                </strong>
-
-                <p>
-                  The upstream tool signs the
-                  recipient, amount, resource
-                  and network.
-                </p>
-              </div>
-            </div>
-
-            <div className="process-line" />
-
-            <div className="process-step">
-              <div className="process-number">
-                3
-              </div>
-
-              <div>
-                <strong>
-                  Agent transaction
-                </strong>
-
-                <p>
-                  BOUND inspects the exact
-                  fields submitted to the
-                  signer.
-                </p>
-              </div>
-            </div>
-
-            <div className="process-line" />
-
-            <div className="process-step final-step">
-              <div className="process-number">
-                4
-              </div>
-
-              <div>
-                <strong>
-                  Signer decision
-                </strong>
-
-                <p>
-                  Only consistent context
-                  reaches the signing key.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section
-          className="proof"
-          id="proof"
-        >
-          <div className="proof-heading">
-            <div>
-              <span className="section-label">
-                Testnet proof
+            <div className="sheet-footer">
+              <span>
+                User mandate
               </span>
 
+              <i />
+
+              <span>
+                Tool evidence
+              </span>
+
+              <i />
+
+              <span>
+                Agent transaction
+              </span>
+
+              <i />
+
+              <strong>
+                BOUND
+              </strong>
+
+              <i />
+
+              <span>
+                Signer
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section
+          className="onchain"
+          id="record"
+        >
+          <div className="section-heading">
+            <span className="section-index">
+              03
+            </span>
+
+            <div>
+              <p>
+                Onchain record
+              </p>
+
               <h2>
-                Verified end to end on BSC
-                Testnet.
+                A verified transaction was
+                executed on BSC Testnet.
               </h2>
             </div>
-
-            <p>
-              A valid transaction was
-              independently checked by BOUND,
-              signed by the dedicated agent
-              wallet, broadcast, confirmed,
-              and read back from chain.
-            </p>
           </div>
 
-          <div className="proof-report">
-            <div className="proof-highlight">
-              <div className="confirmed-label">
-                Confirmed
-              </div>
+          <div className="onchain-body">
+            <div className="receipt-summary">
+              <span className="receipt-status">
+                confirmed
+              </span>
 
-              <div className="proof-amount">
+              <div className="receipt-amount">
                 0.001
                 <span>
                   tBNB
@@ -963,8 +895,10 @@ function App() {
               </div>
 
               <p>
-                Native BSC Testnet transfer
-                matching the signed evidence.
+                The transaction was checked,
+                signed by the dedicated agent
+                wallet, broadcast, confirmed,
+                and read back from chain.
               </p>
 
               <a
@@ -972,23 +906,13 @@ function App() {
                 target="_blank"
                 rel="noreferrer"
               >
-                View transaction
+                Open BscScan
                 <ExternalIcon />
               </a>
             </div>
 
-            <div className="proof-details">
-              <div className="proof-detail">
-                <span>
-                  Status
-                </span>
-
-                <strong className="proof-ok">
-                  Success
-                </strong>
-              </div>
-
-              <div className="proof-detail">
+            <div className="receipt-record">
+              <div>
                 <span>
                   Network
                 </span>
@@ -998,7 +922,17 @@ function App() {
                 </strong>
               </div>
 
-              <div className="proof-detail">
+              <div>
+                <span>
+                  Status
+                </span>
+
+                <strong className="positive">
+                  success
+                </strong>
+              </div>
+
+              <div>
                 <span>
                   Sender
                 </span>
@@ -1010,13 +944,13 @@ function App() {
                 >
                   {shorten(
                     AGENT_WALLET,
-                    12,
-                    8,
+                    13,
+                    9,
                   )}
                 </strong>
               </div>
 
-              <div className="proof-detail">
+              <div>
                 <span>
                   Recipient
                 </span>
@@ -1028,27 +962,29 @@ function App() {
                 >
                   {shorten(
                     TRUSTED_RECIPIENT,
-                    12,
-                    8,
+                    13,
+                    9,
                   )}
                 </strong>
               </div>
 
-              <div className="proof-detail">
+              <div>
                 <span>
                   Transaction
                 </span>
 
-                <strong title={TX_HASH}>
+                <strong
+                  title={TX_HASH}
+                >
                   {shorten(
                     TX_HASH,
-                    14,
-                    10,
+                    15,
+                    11,
                   )}
                 </strong>
               </div>
 
-              <div className="proof-detail">
+              <div>
                 <span>
                   Confirmed value
                 </span>
@@ -1062,93 +998,99 @@ function App() {
         </section>
 
         <section className="scope">
-          <div className="scope-heading">
-            <span className="section-label">
-              Technical scope
+          <div className="section-heading scope-heading">
+            <span className="section-index">
+              04
             </span>
 
-            <h2>
-              Clear boundaries, not broad
-              promises.
-            </h2>
+            <div>
+              <p>
+                Current scope
+              </p>
+
+              <h2>
+                What BOUND verifies today.
+              </h2>
+            </div>
           </div>
 
-          <div className="scope-list">
+          <div className="scope-table">
             <div className="scope-row">
-              <div>
+              <strong>
                 User authorization
-              </div>
+              </strong>
 
               <p>
-                EIP-712 signature verified
-                against a trusted user signer.
+                EIP-712 signature checked
+                against the trusted user
+                signer.
               </p>
 
-              <span className="scope-status">
-                Implemented
+              <span className="scope-done">
+                implemented
               </span>
             </div>
 
             <div className="scope-row">
-              <div>
+              <strong>
                 Tool provenance
-              </div>
+              </strong>
 
               <p>
-                Ed25519 evidence verified
-                against a pinned public key.
+                Ed25519 evidence checked
+                against a pinned source key.
               </p>
 
-              <span className="scope-status">
-                Implemented
+              <span className="scope-done">
+                implemented
               </span>
             </div>
 
             <div className="scope-row">
-              <div>
+              <strong>
                 Transaction binding
-              </div>
+              </strong>
 
               <p>
-                Network, recipient, amount and
+                Chain, recipient, amount and
                 calldata verified before
                 signing.
               </p>
 
-              <span className="scope-status">
-                Implemented
+              <span className="scope-done">
+                implemented
               </span>
             </div>
 
             <div className="scope-row">
-              <div>
-                Replay protection
-              </div>
+              <strong>
+                Replay control
+              </strong>
 
               <p>
-                Signed evidence can be
+                A signed evidence item can be
                 consumed only once by the
                 local execution gate.
               </p>
 
-              <span className="scope-status">
-                Implemented
+              <span className="scope-done">
+                implemented
               </span>
             </div>
 
             <div className="scope-row">
-              <div>
-                Global transaction safety
-              </div>
+              <strong>
+                Global safety
+              </strong>
 
               <p>
-                Scam detection and universal
-                intent inference are outside
-                the current prototype.
+                Scam detection, tool honesty,
+                and universal intent inference
+                are outside this prototype.
               </p>
 
-              <span className="scope-status muted-status">
-                Not claimed
+              <span className="scope-limit">
+                not claimed
               </span>
             </div>
           </div>
@@ -1156,19 +1098,20 @@ function App() {
       </main>
 
       <footer className="footer">
-        <div className="footer-brand">
+        <div>
           <strong>
             BOUND
           </strong>
 
           <span>
-            Context integrity before execution.
+            Context integrity before
+            execution.
           </span>
         </div>
 
-        <p>
-          Research prototype · BSC Testnet
-        </p>
+        <span>
+          Prototype · BSC Testnet
+        </span>
       </footer>
     </div>
   );
