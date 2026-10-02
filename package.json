@@ -18,7 +18,8 @@
     "pin-native-tool": "tsx src/admin/pin-native-tool.ts",
     "native-agent": "tsx src/agent/native-runner.ts",
     "user-wallet-create": "tsx src/admin/create-user-wallet.ts",
-    "authorization-sign": "tsx src/admin/sign-native-authorization.ts"
+    "authorization-sign": "tsx src/admin/sign-native-authorization.ts",
+    "api": "tsx src/api/server.ts"
   },
   "keywords": [],
   "author": "",
