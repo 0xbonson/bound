@@ -219,6 +219,49 @@ function buildMessage(
 }
 
 /*
+ * Public canonical typed-data builder.
+ *
+ * This is the single source of truth for the EIP-712
+ * authorization payload used by:
+ *
+ * - local signing
+ * - browser wallet signing
+ * - server-side signature verification
+ *
+ * The browser/API layer may serialize bigint fields for
+ * eth_signTypedData_v4 transport, but must preserve these
+ * exact field values and EIP-712 types.
+ */
+
+export function buildNativeAuthorizationTypedData(
+  input:
+    NativeAuthorization
+) {
+  const authorization =
+    nativeAuthorizationSchema.parse(
+      input
+    );
+
+  return {
+    domain:
+      buildDomain(
+        authorization
+      ),
+
+    types:
+      nativeAuthorizationTypes,
+
+    primaryType:
+      "NativeAuthorization" as const,
+
+    message:
+      buildMessage(
+        authorization
+      ),
+  };
+}
+
+/*
  * =======================================================
  * SIGN AUTHORIZATION
  * =======================================================
@@ -226,10 +269,10 @@ function buildMessage(
 
 export async function signNativeAuthorization(input: {
   authorization:
-    NativeAuthorization;
+  NativeAuthorization;
 
   privateKey:
-    `0x${string}`;
+  `0x${string}`;
 }): Promise<SignedNativeAuthorization> {
   const authorization =
     nativeAuthorizationSchema.parse(
@@ -241,23 +284,24 @@ export async function signNativeAuthorization(input: {
       input.privateKey
     );
 
+  const typedData =
+    buildNativeAuthorizationTypedData(
+      authorization
+    );
+
   const signature =
     await account.signTypedData({
       domain:
-        buildDomain(
-          authorization
-        ),
+        typedData.domain,
 
       types:
-        nativeAuthorizationTypes,
+        typedData.types,
 
       primaryType:
-        "NativeAuthorization",
+        typedData.primaryType,
 
       message:
-        buildMessage(
-          authorization
-        ),
+        typedData.message,
     });
 
   return signedNativeAuthorizationSchema.parse({
@@ -281,28 +325,28 @@ export async function signNativeAuthorization(input: {
 
 export type SignedAuthorizationVerification =
   | {
-      valid:
-        true;
+    valid:
+    true;
 
-      signer:
-        `0x${string}`;
+    signer:
+    `0x${string}`;
 
-      authorization:
-        NativeAuthorization;
-    }
+    authorization:
+    NativeAuthorization;
+  }
   | {
-      valid:
-        false;
+    valid:
+    false;
 
-      code:
-        | "INVALID_AUTHORIZATION_ENVELOPE"
-        | "INVALID_EXPECTED_SIGNER"
-        | "UNAUTHORIZED_AUTHORIZATION_SIGNER"
-        | "INVALID_AUTHORIZATION_SIGNATURE";
+    code:
+    | "INVALID_AUTHORIZATION_ENVELOPE"
+    | "INVALID_EXPECTED_SIGNER"
+    | "UNAUTHORIZED_AUTHORIZATION_SIGNER"
+    | "INVALID_AUTHORIZATION_SIGNATURE";
 
-      message:
-        string;
-    };
+    message:
+    string;
+  };
 
 /*
  * =======================================================
@@ -323,10 +367,10 @@ export type SignedAuthorizationVerification =
 
 export async function verifySignedNativeAuthorization(input: {
   envelope:
-    unknown;
+  unknown;
 
   expectedSigner:
-    string;
+  string;
 }): Promise<SignedAuthorizationVerification> {
   const envelopeResult =
     signedNativeAuthorizationSchema
@@ -381,6 +425,7 @@ export async function verifySignedNativeAuthorization(input: {
    * First reject an envelope that openly claims to
    * belong to another user identity.
    */
+
   if (
     envelope.signer !==
     normalizedExpectedSigner
@@ -398,30 +443,33 @@ export async function verifySignedNativeAuthorization(input: {
   }
 
   try {
+    const typedData =
+      buildNativeAuthorizationTypedData(
+        envelope.authorization
+      );
+
     /*
      * Recover signer from the EIP-712 signature over
      * the exact authorization fields.
      */
+
     const recoveredSigner =
       await recoverTypedDataAddress({
         domain:
-          buildDomain(
-            envelope.authorization
-          ),
+          typedData.domain,
 
         types:
-          nativeAuthorizationTypes,
+          typedData.types,
 
         primaryType:
-          "NativeAuthorization",
+          typedData.primaryType,
 
         message:
-          buildMessage(
-            envelope.authorization
-          ),
+          typedData.message,
 
         signature:
-          envelope.signature as `0x${string}`,
+          envelope.signature as
+          `0x${string}`,
       });
 
     if (
