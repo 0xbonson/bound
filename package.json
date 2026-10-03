@@ -25,7 +25,8 @@
     "mpp-route-check": "tsx src/admin/check-test-usdt-route.ts",
     "mpp-swap-test-usdt": "tsx src/admin/swap-test-usdt.ts",
     "mpp-pay-real": "tsx src/admin/run-real-mpp-payment.ts",
-    "bound-mpp-guard": "tsx src/admin/run-bound-mpp-guarded.ts"
+    "bound-mpp-guard": "tsx src/admin/run-bound-mpp-guarded.ts",
+    "product-api": "tsx src/api/mpp-product-server.ts"
   },
   "keywords": [],
   "author": "",
