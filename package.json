@@ -23,7 +23,8 @@
     "mpp-tool": "tsx src/tool/mpp-transaction-check-server.ts",
     "mpp-payer-check": "tsx src/admin/check-mpp-payer.ts",
     "mpp-route-check": "tsx src/admin/check-test-usdt-route.ts",
-    "mpp-swap-test-usdt": "tsx src/admin/swap-test-usdt.ts"
+    "mpp-swap-test-usdt": "tsx src/admin/swap-test-usdt.ts",
+    "mpp-pay-real": "tsx src/admin/run-real-mpp-payment.ts"
   },
   "keywords": [],
   "author": "",
