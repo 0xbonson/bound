@@ -70,6 +70,16 @@ import {
   type PurchasingQuote,
 } from "../agent/purchasing-agent.js";
 
+import {
+  fetchTransactionFacts,
+  normalizeTransactionInput,
+} from "../chain/transaction-intelligence.js";
+
+import {
+  buildTransactionExplanation,
+} from "../chain/transaction-explanation.js";
+
+
 /*
  * =======================================================
  * CONFIGURATION
@@ -134,6 +144,15 @@ const taskRequestSchema =
         .trim()
         .min(1)
         .max(2_000),
+  });
+
+const transactionInspectRequestSchema =
+  z.object({
+    input:
+      z.string()
+        .trim()
+        .min(1)
+        .max(500),
   });
 
 const authorizationDraftRequestSchema =
@@ -2094,6 +2113,101 @@ async function handleRequest(
 
         browserExecution:
           false,
+      }
+    );
+
+    return;
+  }
+
+  /*
+   * ---------------------------------------------------
+   * BOUND LENS — TRANSACTION INSPECTION
+   * ---------------------------------------------------
+   *
+   * Blockchain facts are deterministic.
+   * No AI decides whether the transaction is safe.
+   */
+
+  if (
+    method ===
+    "POST" &&
+    url.pathname ===
+    "/api/transaction/inspect"
+  ) {
+    const body =
+      await readJsonBody(
+        request
+      );
+
+    const parsed =
+      transactionInspectRequestSchema
+        .parse(
+          body
+        );
+
+    try {
+      /*
+       * Validate the semantic input separately so malformed
+       * hashes / unsupported explorer URLs return HTTP 400
+       * instead of becoming an internal server error.
+       */
+
+      normalizeTransactionInput(
+        parsed.input
+      );
+    } catch (
+      error
+    ) {
+      sendJson(
+        request,
+        response,
+        400,
+        {
+          error:
+            "INVALID_TRANSACTION_INPUT",
+
+          message:
+            error instanceof Error
+              ? error.message
+              : "Invalid transaction input.",
+        }
+      );
+
+      return;
+    }
+
+    const facts =
+      await fetchTransactionFacts(
+        parsed.input
+      );
+
+    const explanation =
+      buildTransactionExplanation(
+        facts
+      );
+
+    sendJson(
+      request,
+      response,
+      200,
+      {
+        version:
+          "bound.transaction-inspection.v1",
+
+        facts,
+
+        explanation,
+
+        trust: {
+          blockchainFacts:
+            "deterministic",
+
+          aiUsedForFacts:
+            false,
+
+          aiUsedForSecurityDecision:
+            false,
+        },
       }
     );
 
