@@ -36,9 +36,26 @@ import {
     type ToolRequest,
 } from "../core/request-bound.js";
 
+import {
+    fetchTransactionFacts,
+    normalizeTransactionInput,
+} from "../chain/transaction-intelligence.js";
+
+import {
+    buildTransactionExplanation,
+} from "../chain/transaction-explanation.js";
+
+import {
+    buildTransactionAnalysisToolRequest,
+    TRANSACTION_ANALYSIS_CHAIN_ID,
+    TRANSACTION_ANALYSIS_METHOD,
+    TRANSACTION_ANALYSIS_NETWORK,
+    TRANSACTION_ANALYSIS_TOOL_ID,
+} from "../core/intent-manifest.js";
+
 /*
  * =======================================================
- * BOUND — MPP TRANSACTION CHECK SERVICE
+ * BOUND — MPP TRANSACTION ANALYSIS SERVICE
  * =======================================================
  *
  * Purpose:
@@ -47,7 +64,7 @@ import {
  *    BNB MPP SDK.
  *
  * 2. After MPP verifies a real BSC Testnet payment,
- *    perform an actual BSC Testnet RPC transaction check.
+ *    perform an actual BSC Testnet transaction analysis.
  *
  * Nothing in this server fabricates blockchain results.
  *
@@ -78,16 +95,16 @@ const RECIPIENT_RAW =
     process.env.BOUND_MPP_RECIPIENT;
 
 const TOOL_ID =
-    "bound-transaction-check";
+    TRANSACTION_ANALYSIS_TOOL_ID;
 
 const TOOL_METHOD =
-    "simulate_transaction";
+    TRANSACTION_ANALYSIS_METHOD;
 
 const NETWORK_NAME =
-    "BNB Smart Chain Testnet";
+    TRANSACTION_ANALYSIS_NETWORK;
 
 const CHAIN_ID =
-    97;
+    TRANSACTION_ANALYSIS_CHAIN_ID;
 
 const TOKEN_PRESET =
     "TEST_USDT" as const;
@@ -248,128 +265,35 @@ const mppx =
  * =======================================================
  */
 
-type TransactionCheckInput = {
-    from:
-    Address;
-
-    to:
-    Address;
-
-    valueWei:
-    string;
-
-    data:
-    Hex;
+type TransactionAnalysisInput = {
+    transactionHash:
+        `0x${string}`;
 };
 
-function parseUnsignedInteger(
-    value:
-        string | undefined,
-    field:
-        string
-): string {
-    if (
-        value ===
-        undefined
-    ) {
-        throw new Error(
-            `${field} is required`
-        );
-    }
-
-    if (
-        !/^(0|[1-9]\d*)$/.test(
-            value
-        )
-    ) {
-        throw new Error(
-            `${field} must be an unsigned base-10 integer`
-        );
-    }
-
-    return value;
-}
-
-function parseHexData(
-    value:
-        string | undefined
-): Hex {
-    const data =
-        value ??
-        "0x";
-
-    if (
-        !/^0x(?:[0-9a-fA-F]{2})*$/.test(
-            data
-        )
-    ) {
-        throw new Error(
-            "data must be an even-length 0x-prefixed hex string"
-        );
-    }
-
-    return data as Hex;
-}
-
-function parseAddress(
-    value:
-        string | undefined,
-    field:
-        string
-): Address {
-    if (
-        !value
-    ) {
-        throw new Error(
-            `${field} is required`
-        );
-    }
-
-    if (
-        !isAddress(
-            value
-        )
-    ) {
-        throw new Error(
-            `${field} must be a valid EVM address`
-        );
-    }
-
-    return getAddress(
-        value
-    );
-}
-
-function parseTransactionCheckInput(
+function parseTransactionAnalysisInput(
     query:
         Record<
             string,
             string
         >
-): TransactionCheckInput {
+):
+    TransactionAnalysisInput {
+    if (
+        !query.transactionHash
+    ) {
+        throw new Error(
+            "transactionHash is required"
+        );
+    }
+
+    const normalized =
+        normalizeTransactionInput(
+            query.transactionHash
+        );
+
     return {
-        from:
-            parseAddress(
-                query.from,
-                "from"
-            ),
-
-        to:
-            parseAddress(
-                query.to,
-                "to"
-            ),
-
-        valueWei:
-            parseUnsignedInteger(
-                query.valueWei,
-                "valueWei"
-            ),
-
-        data:
-            parseHexData(
-                query.data
-            ),
+        transactionHash:
+            normalized.hash,
     };
 }
 
@@ -377,151 +301,46 @@ function parseTransactionCheckInput(
  * =======================================================
  * REQUEST BINDING
  * =======================================================
+ *
+ * The paid service reconstructs the request using the
+ * exact same canonical primitive used by the agent and
+ * the BOUND product API.
  */
 
 function buildToolRequest(
     input:
-        TransactionCheckInput
+        TransactionAnalysisInput
 ): ToolRequest {
-    return {
-        toolId:
-            TOOL_ID,
-
-        method:
-            TOOL_METHOD,
-
-        arguments: {
-            chainId:
-                CHAIN_ID,
-
-            from:
-                input.from,
-
-            to:
-                input.to,
-
-            valueWei:
-                input.valueWei,
-
-            data:
-                input.data,
-        },
-    };
+    return buildTransactionAnalysisToolRequest(
+        input.transactionHash
+    );
 }
 
 /*
  * =======================================================
- * REAL TRANSACTION CHECK
+ * REAL TRANSACTION ANALYSIS
  * =======================================================
  *
- * Both eth_call and eth_estimateGas are sent to the
- * configured BSC Testnet RPC.
+ * The protected paid operation reads an existing BSC
+ * Testnet transaction from the real RPC path.
  *
- * A failed call is reported as a real RPC failure/revert;
- * it is not converted into a fake success.
+ * It does not simulate a new transaction and does not
+ * invent blockchain facts.
  */
 
-async function runTransactionCheck(
+async function runTransactionAnalysis(
     input:
-        TransactionCheckInput
+        TransactionAnalysisInput
 ) {
-    const [
-        chainId,
-        blockNumber,
-    ] =
-        await Promise.all([
-            publicClient
-                .getChainId(),
+    const facts =
+        await fetchTransactionFacts(
+            input.transactionHash
+        );
 
-            publicClient
-                .getBlockNumber(),
-        ]);
-
-    let callSucceeded =
-        false;
-
-    let returnData:
-        Hex | null =
-        null;
-
-    let callError:
-        string | null =
-        null;
-
-    try {
-        const result =
-            await publicClient.call({
-                account:
-                    input.from,
-
-                to:
-                    input.to,
-
-                value:
-                    BigInt(
-                        input.valueWei
-                    ),
-
-                data:
-                    input.data,
-            });
-
-        callSucceeded =
-            true;
-
-        returnData =
-            result.data ??
-            "0x";
-    } catch (
-    error
-    ) {
-        callError =
-            error instanceof Error
-                ? error.message
-                : String(
-                    error
-                );
-    }
-
-    let gasEstimate:
-        string | null =
-        null;
-
-    let gasEstimateError:
-        string | null =
-        null;
-
-    try {
-        const gas =
-            await publicClient
-                .estimateGas({
-                    account:
-                        input.from,
-
-                    to:
-                        input.to,
-
-                    value:
-                        BigInt(
-                            input.valueWei
-                        ),
-
-                    data:
-                        input.data,
-                });
-
-        gasEstimate =
-            gas.toString();
-    } catch (
-    error
-    ) {
-        gasEstimateError =
-            error instanceof Error
-                ? error.message
-                : String(
-                    error
-                );
-    }
+    const explanation =
+        buildTransactionExplanation(
+            facts
+        );
 
     return {
         source:
@@ -530,36 +349,27 @@ async function runTransactionCheck(
         network:
             NETWORK_NAME,
 
-        chainId,
+        chainId:
+            facts.subject.chainId,
 
         blockNumber:
-            blockNumber.toString(),
+            facts.transaction.blockNumber,
 
         checkedTransaction: {
-            from:
-                input.from,
-
-            to:
-                input.to,
-
-            valueWei:
-                input.valueWei,
-
-            data:
-                input.data,
+            transactionHash:
+                facts.subject.transactionHash,
         },
 
-        rpcResult: {
-            callSucceeded,
+        /*
+         * Kept for compatibility with the current product
+         * response shape while the dashboard is migrated.
+         */
+        rpcResult:
+            facts,
 
-            returnData,
+        facts,
 
-            callError,
-
-            gasEstimate,
-
-            gasEstimateError,
-        },
+        explanation,
     };
 }
 
@@ -635,7 +445,7 @@ app.get(
                 "ok",
 
             service:
-                "BOUND MPP Transaction Check",
+                "BOUND MPP Transaction Analysis",
 
             protocol:
                 "BNB MPP",
@@ -694,20 +504,20 @@ app.get(
 /*
  * Paid endpoint.
  *
- * Malformed transaction requests are rejected before
+ * Malformed transaction-analysis requests are rejected before
  * payment is requested.
  */
 app.get(
-    "/api/transaction-check",
+    "/api/transaction-analysis",
     async (
         c
     ) => {
         let input:
-            TransactionCheckInput;
+            TransactionAnalysisInput;
 
         try {
             input =
-                parseTransactionCheckInput(
+                parseTransactionAnalysisInput(
                     c.req.query()
                 );
         } catch (
@@ -716,7 +526,7 @@ app.get(
             return c.json(
                 {
                     error:
-                        "INVALID_TRANSACTION_CHECK_REQUEST",
+                        "INVALID_TRANSACTION_ANALYSIS_REQUEST",
 
                     message:
                         error instanceof Error
@@ -767,7 +577,7 @@ app.get(
          * the payment credential.
          */
         const result =
-            await runTransactionCheck(
+            await runTransactionAnalysis(
                 input
             );
 
@@ -819,7 +629,7 @@ serve(
         );
 
         console.log(
-            "BOUND MPP TRANSACTION CHECK"
+            "BOUND MPP TRANSACTION ANALYSIS"
         );
 
         console.log(

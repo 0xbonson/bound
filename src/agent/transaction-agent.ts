@@ -3,29 +3,35 @@ import {
 } from "node:process";
 
 import {
-    getAddress,
-    isAddress,
-} from "viem";
-
-import {
     z,
 } from "zod";
 
 import {
     getToolRequestHash,
-    parseToolRequest,
     type ToolRequest,
 } from "../core/request-bound.js";
 
+import {
+    normalizeTransactionInput,
+} from "../chain/transaction-intelligence.js";
+
+import {
+    buildTransactionAnalysisToolRequest,
+    TRANSACTION_ANALYSIS_CHAIN_ID,
+    TRANSACTION_ANALYSIS_METHOD,
+    TRANSACTION_ANALYSIS_NETWORK,
+    TRANSACTION_ANALYSIS_TOOL_ID,
+} from "../core/intent-manifest.js";
+
 /*
  * =======================================================
- * BOUND — TRANSACTION CHECK AGENT
+ * BOUND — TRANSACTION INTELLIGENCE AGENT
  * =======================================================
  *
  * Gemini's role:
  *
  * - understand the user's natural-language task
- * - propose the exact transaction-check request
+ * - propose the exact transaction-analysis request
  *
  * Gemini's role is NOT:
  *
@@ -57,16 +63,16 @@ try {
  */
 
 export const TRANSACTION_AGENT_CHAIN_ID =
-    97 as const;
+    TRANSACTION_ANALYSIS_CHAIN_ID;
 
 export const TRANSACTION_AGENT_NETWORK =
-    "BNB Smart Chain Testnet" as const;
+    TRANSACTION_ANALYSIS_NETWORK;
 
 export const TRANSACTION_AGENT_TOOL_ID =
-    "bound-transaction-check" as const;
+    TRANSACTION_ANALYSIS_TOOL_ID;
 
 export const TRANSACTION_AGENT_METHOD =
-    "simulate_transaction" as const;
+    TRANSACTION_ANALYSIS_METHOD;
 
 const DEFAULT_GEMINI_MODEL =
     "gemini-3.5-flash-lite";
@@ -88,11 +94,11 @@ const taskSchema =
         .trim()
         .min(
             1,
-            "A transaction-check task is required."
+            "A transaction-analysis task is required."
         )
         .max(
             MAX_TASK_LENGTH,
-            "The transaction-check task is too long."
+            "The transaction-analysis task is too long."
         );
 
 /*
@@ -112,37 +118,18 @@ const transactionPlanArgsSchema =
         clarification:
             z.string()
                 .trim()
-                .max(
-                    500
-                )
+                .max(500)
                 .optional(),
 
-        from:
+        transactionInput:
             z.string()
-                .optional(),
-
-        to:
-            z.string()
-                .optional(),
-
-        valueWei:
-            z.string()
-                .regex(
-                    /^(0|[1-9]\d*)$/,
-                    "valueWei must be a non-negative integer string."
-                )
-                .optional(),
-
-        data:
-            z.string()
+                .trim()
                 .optional(),
 
         summary:
             z.string()
                 .trim()
-                .max(
-                    500
-                )
+                .max(500)
                 .optional(),
     });
 
@@ -422,10 +409,10 @@ const transactionPlanningTools:
             functionDeclarations: [
                 {
                     name:
-                        "propose_transaction_check",
+                        "propose_transaction_analysis",
 
                     description:
-                        "Propose the exact BNB Smart Chain Testnet transaction that should be checked by BOUND's paid transaction-check tool.",
+                        "Propose the exact BNB Smart Chain Testnet transaction hash that BOUND's paid analysis tool should analyze.",
 
                     parameters: {
                         type:
@@ -437,7 +424,7 @@ const transactionPlanningTools:
                                     "BOOLEAN",
 
                                 description:
-                                    "True only when the user is asking BOUND to check or simulate one BNB Smart Chain Testnet transaction.",
+                                    "True only when the request concerns one BNB Smart Chain Testnet transaction.",
                             },
 
                             needsClarification: {
@@ -445,7 +432,7 @@ const transactionPlanningTools:
                                     "BOOLEAN",
 
                                 description:
-                                    "True when transaction-critical fields are missing, ambiguous, or the request is unsupported.",
+                                    "True when a transaction hash or BSC Testnet BscScan transaction URL is missing or ambiguous.",
                             },
 
                             clarification: {
@@ -453,39 +440,15 @@ const transactionPlanningTools:
                                     "STRING",
 
                                 description:
-                                    "A short user-facing question explaining exactly what information is missing or unsupported.",
+                                    "A short user-facing explanation of what exact transaction input is missing.",
                             },
 
-                            from: {
+                            transactionInput: {
                                 type:
                                     "STRING",
 
                                 description:
-                                    "The exact EVM sender address supplied by the user.",
-                            },
-
-                            to: {
-                                type:
-                                    "STRING",
-
-                                description:
-                                    "The exact EVM destination address supplied by the user.",
-                            },
-
-                            valueWei: {
-                                type:
-                                    "STRING",
-
-                                description:
-                                    "The exact native value in wei as a non-negative decimal integer string.",
-                            },
-
-                            data: {
-                                type:
-                                    "STRING",
-
-                                description:
-                                    "Exact hexadecimal calldata. Use 0x only when the user's transaction intentionally has no calldata.",
+                                    "The exact raw transaction hash or BSC Testnet BscScan transaction URL supplied by the user. Never invent or alter it.",
                             },
 
                             summary: {
@@ -493,7 +456,7 @@ const transactionPlanningTools:
                                     "STRING",
 
                                 description:
-                                    "A short factual description of the proposed transaction check. Do not make a security verdict.",
+                                    "A short factual description of what transaction will be analyzed. Do not make a security verdict.",
                             },
                         },
 
@@ -518,17 +481,17 @@ You are the planning layer for BOUND.
 
 BOUND protects paid AI tool calls by binding a user's authorization to the exact semantic tool request.
 
-Your only supported capability in this prototype is:
+The only paid capability in this prototype is:
 
-- Tool: Transaction Check
-- Tool ID: bound-transaction-check
-- Method: simulate_transaction
+- Tool: Transaction Analysis
+- Tool ID: bound-transaction-analysis
+- Method: analyze_transaction
 - Network: BNB Smart Chain Testnet
 - Chain ID: 97
 
-Your job is to understand the user's transaction-check task and call propose_transaction_check.
+Your job is to identify the exact transaction the user wants analyzed and call propose_transaction_analysis.
 
-Important rules:
+Rules:
 
 1. You are not the security authority.
 2. You cannot authorize payment.
@@ -537,24 +500,17 @@ Important rules:
 5. You cannot sign or broadcast a blockchain transaction.
 6. You cannot claim that payment occurred.
 7. You cannot claim that a transaction is universally safe.
-8. Never invent an address, value, or calldata.
-9. Preserve addresses exactly semantically. The host will validate and checksum them.
-10. valueWei must be a decimal integer string.
-11. data must be hexadecimal bytes beginning with 0x.
-12. Use data = 0x only when the requested transaction intentionally has no calldata.
-13. The network is fixed by the host to BNB Smart Chain Testnet, chain ID 97.
-14. Do not accept requests for another chain.
-15. If from, to, valueWei, or data is missing or ambiguous, set needsClarification = true.
-16. If the request is not a transaction-check request for BNB Smart Chain Testnet, set supported = false and needsClarification = true.
-17. If all exact transaction fields are present and valid in meaning:
+8. Never invent or modify a transaction hash.
+9. Accept only a raw 32-byte transaction hash or a BSC Testnet BscScan transaction URL.
+10. Do not accept BSC mainnet or another chain.
+11. If the transaction input is missing or ambiguous, set needsClarification = true.
+12. If the request is outside BSC Testnet transaction analysis, set supported = false and needsClarification = true.
+13. If the exact transaction input is present:
     - supported = true
     - needsClarification = false
-    - provide from
-    - provide to
-    - provide valueWei
-    - provide data
-18. summary must describe what will be checked, not whether it is safe.
-19. You must call propose_transaction_check.
+    - return it unchanged in transactionInput
+14. summary may describe the requested analysis, but must not make a security verdict.
+15. You must call propose_transaction_analysis.
 `;
 
 /*
@@ -562,66 +518,6 @@ Important rules:
  * HOST-SIDE NORMALIZATION
  * =======================================================
  */
-
-function normalizeAddress(
-    raw:
-        string,
-    field:
-        "from" |
-        "to"
-):
-    `0x${string}` {
-    if (
-        !isAddress(
-            raw
-        )
-    ) {
-        throw new Error(
-            `Gemini returned an invalid ${field} address.`
-        );
-    }
-
-    return getAddress(
-        raw
-    );
-}
-
-function normalizeData(
-    raw:
-        string
-):
-    `0x${string}` {
-    if (
-        !/^0x(?:[0-9a-fA-F]{2})*$/.test(
-            raw
-        )
-    ) {
-        throw new Error(
-            "Gemini returned invalid transaction calldata."
-        );
-    }
-
-    return raw.toLowerCase() as
-        `0x${string}`;
-}
-
-function normalizeValueWei(
-    raw:
-        string
-):
-    string {
-    if (
-        !/^(0|[1-9]\d*)$/.test(
-            raw
-        )
-    ) {
-        throw new Error(
-            "Gemini returned an invalid valueWei."
-        );
-    }
-
-    return raw;
-}
 
 function getModelText(
     content:
@@ -668,7 +564,7 @@ function getClarificationMessage(
 export async function runTransactionAgent(
     input: {
         task:
-        string;
+            string;
     }
 ): Promise<
     TransactionAgentResult
@@ -688,7 +584,7 @@ export async function runTransactionAgent(
                     "TASK_RECEIVED",
 
                 message:
-                    "Gemini received the user's transaction-check task.",
+                    "The Transaction Intelligence Agent received the user's analysis request.",
             },
         ];
 
@@ -724,7 +620,7 @@ export async function runTransactionAgent(
                     part
                         .functionCall
                         ?.name ===
-                    "propose_transaction_check"
+                    "propose_transaction_analysis"
             )
             ?.functionCall;
 
@@ -738,8 +634,8 @@ export async function runTransactionAgent(
 
         throw new Error(
             text
-                ? `Gemini did not return a structured transaction request: ${text}`
-                : "Gemini did not return a structured transaction request."
+                ? `Gemini did not return a structured transaction-analysis request: ${text}`
+                : "Gemini did not return a structured transaction-analysis request."
         );
     }
 
@@ -755,7 +651,7 @@ export async function runTransactionAgent(
         const message =
             getClarificationMessage(
                 plan,
-                "This prototype currently supports exact transaction checks on BNB Smart Chain Testnet only."
+                "This prototype currently supports analysis of BNB Smart Chain Testnet transactions only."
             );
 
         activity.push({
@@ -780,12 +676,13 @@ export async function runTransactionAgent(
     }
 
     if (
-        plan.needsClarification
+        plan.needsClarification ||
+        !plan.transactionInput
     ) {
         const message =
             getClarificationMessage(
                 plan,
-                "Provide the exact from address, to address, valueWei, and calldata before BOUND can construct the request."
+                "Provide a BSC Testnet transaction hash or BscScan transaction URL."
             );
 
         activity.push({
@@ -809,15 +706,16 @@ export async function runTransactionAgent(
         };
     }
 
-    if (
-        !plan.from ||
-        !plan.to ||
-        plan.valueWei ===
-        undefined ||
-        !plan.data
-    ) {
+    let normalized;
+
+    try {
+        normalized =
+            normalizeTransactionInput(
+                plan.transactionInput
+            );
+    } catch {
         const message =
-            "Gemini marked the task ready but omitted one or more transaction-critical fields.";
+            "The supplied transaction input is not a valid BSC Testnet transaction hash or BscScan transaction URL.";
 
         activity.push({
             step:
@@ -840,53 +738,14 @@ export async function runTransactionAgent(
         };
     }
 
-    const from =
-        normalizeAddress(
-            plan.from,
-            "from"
-        );
-
-    const to =
-        normalizeAddress(
-            plan.to,
-            "to"
-        );
-
-    const valueWei =
-        normalizeValueWei(
-            plan.valueWei
-        );
-
-    const data =
-        normalizeData(
-            plan.data
-        );
-
     /*
-     * The host, not Gemini, pins all protocol-critical
-     * identifiers.
+     * The host, not Gemini, constructs the exact semantic
+     * tool request that will later be authorized.
      */
     const request =
-        parseToolRequest({
-            toolId:
-                TRANSACTION_AGENT_TOOL_ID,
-
-            method:
-                TRANSACTION_AGENT_METHOD,
-
-            arguments: {
-                chainId:
-                    TRANSACTION_AGENT_CHAIN_ID,
-
-                from,
-
-                to,
-
-                valueWei,
-
-                data,
-            },
-        });
+        buildTransactionAnalysisToolRequest(
+            normalized.hash
+        );
 
     const requestHash =
         getToolRequestHash(
@@ -896,14 +755,14 @@ export async function runTransactionAgent(
     const summary =
         plan.summary
             ?.trim() ||
-        `Check the exact BSC Testnet transaction from ${from} to ${to}.`;
+        `Analyze BSC Testnet transaction ${normalized.hash}.`;
 
     activity.push({
         step:
             "REQUEST_PLANNED",
 
         message:
-            "Gemini proposed an exact transaction-check request. BOUND canonicalized and hashed it host-side.",
+            "The agent proposed a transaction analysis. BOUND normalized the transaction hash and canonicalized the exact paid tool request host-side.",
     });
 
     return {

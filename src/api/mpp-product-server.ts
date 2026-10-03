@@ -60,9 +60,21 @@ import {
 
 import {
     getToolRequestHash,
-    parseToolRequest,
     type ToolRequest,
 } from "../core/request-bound.js";
+
+import {
+    normalizeTransactionInput,
+} from "../chain/transaction-intelligence.js";
+
+import {
+    buildTransactionAnalysisIntent,
+    buildTransactionAnalysisToolRequest,
+} from "../core/intent-manifest.js";
+
+import {
+    buildWhatChangedReport,
+} from "../core/what-changed.js";
 
 import {
     MPP_REQUEST_AUTHORIZATION_VERSION,
@@ -81,7 +93,7 @@ import {
  *
  * Product flow:
  *
- * 1. User gives Gemini a transaction-check task.
+ * 1. User gives Gemini a transaction-analysis task.
  * 2. Gemini proposes the exact semantic tool request.
  * 3. BOUND canonicalizes + hashes that request host-side.
  * 4. Server fetches a REAL BNB MPP HTTP 402 challenge.
@@ -188,19 +200,11 @@ const MAX_REQUEST_BODY_BYTES =
     64 *
     1024;
 
-const ATTACK_TARGET =
-    getAddress(
-        "0x2222222222222222222222222222222222222222"
-    );
+const CONTROLLED_MUTATED_TRANSACTION_HASH =
+    "0x2222222222222222222222222222222222222222222222222222222222222222";
 
 const FINAL_GUARDED_PAYMENT_TX =
     "0x4185b1cb8dea410022833f66443230ebda0548178a18f10c92b635b44ee37450";
-
-const FINAL_AUTHORIZED_REQUEST_HASH =
-    "0xeba127c7b6efdc8070ccc112974db83ebe2a1e448758aa0a33df87a5f19535f7";
-
-const FINAL_TAMPERED_REQUEST_HASH =
-    "0xcf92029d1340a65fb34551216ad501aaee694d38d7f826d78478e1381be37f12";
 
 const DEFAULT_ALLOWED_ORIGINS = [
     "http://localhost:5173",
@@ -897,28 +901,41 @@ function getConfirmedAuthorization(
  * =======================================================
  */
 
-type TransactionArguments = {
+type TransactionAnalysisArguments = {
     chainId:
-    number;
+        number;
 
-    from:
-    `0x${string}`;
-
-    to:
-    `0x${string}`;
-
-    valueWei:
-    string;
-
-    data:
-    `0x${string}`;
+    transactionHash:
+        `0x${string}`;
 };
 
-function parseTransactionArguments(
+function parseTransactionAnalysisArguments(
     request:
         ToolRequest
 ):
-    TransactionArguments {
+    TransactionAnalysisArguments {
+    if (
+        request.toolId !==
+        TRANSACTION_AGENT_TOOL_ID
+    ) {
+        throw new HttpError(
+            400,
+            "INVALID_TOOL_ID",
+            "The paid request must target BOUND transaction analysis."
+        );
+    }
+
+    if (
+        request.method !==
+        TRANSACTION_AGENT_METHOD
+    ) {
+        throw new HttpError(
+            400,
+            "INVALID_TOOL_METHOD",
+            "The paid request must use the transaction-analysis method."
+        );
+    }
+
     if (
         typeof request.arguments !==
         "object" ||
@@ -931,7 +948,7 @@ function parseTransactionArguments(
         throw new HttpError(
             500,
             "INVALID_INTERNAL_TOOL_REQUEST",
-            "The internal transaction-check request has invalid arguments."
+            "The internal transaction-analysis request has invalid arguments."
         );
     }
 
@@ -949,63 +966,33 @@ function parseTransactionArguments(
         throw new HttpError(
             400,
             "INVALID_TOOL_CHAIN",
-            "The transaction-check request must use BSC Testnet chain ID 97."
+            "The transaction-analysis request must use BSC Testnet chain ID 97."
         );
     }
 
     if (
-        typeof args.from !==
-        "string" ||
-        !isAddress(
-            args.from
-        )
+        typeof args.transactionHash !==
+        "string"
     ) {
         throw new HttpError(
             400,
-            "INVALID_TOOL_FROM",
-            "The transaction-check request contains an invalid from address."
+            "INVALID_TRANSACTION_HASH",
+            "The transaction-analysis request is missing a transaction hash."
         );
     }
 
-    if (
-        typeof args.to !==
-        "string" ||
-        !isAddress(
-            args.to
-        )
-    ) {
-        throw new HttpError(
-            400,
-            "INVALID_TOOL_TO",
-            "The transaction-check request contains an invalid to address."
-        );
-    }
+    let normalized;
 
-    if (
-        typeof args.valueWei !==
-        "string" ||
-        !/^(0|[1-9]\d*)$/.test(
-            args.valueWei
-        )
-    ) {
+    try {
+        normalized =
+            normalizeTransactionInput(
+                args.transactionHash
+            );
+    } catch {
         throw new HttpError(
             400,
-            "INVALID_TOOL_VALUE",
-            "The transaction-check request contains an invalid valueWei."
-        );
-    }
-
-    if (
-        typeof args.data !==
-        "string" ||
-        !/^0x(?:[0-9a-fA-F]{2})*$/.test(
-            args.data
-        )
-    ) {
-        throw new HttpError(
-            400,
-            "INVALID_TOOL_DATA",
-            "The transaction-check request contains invalid calldata."
+            "INVALID_TRANSACTION_HASH",
+            "The transaction-analysis request contains an invalid BSC Testnet transaction hash."
         );
     }
 
@@ -1013,22 +1000,8 @@ function parseTransactionArguments(
         chainId:
             EXPECTED_CHAIN_ID,
 
-        from:
-            getAddress(
-                args.from
-            ),
-
-        to:
-            getAddress(
-                args.to
-            ),
-
-        valueWei:
-            args.valueWei,
-
-        data:
-            args.data.toLowerCase() as
-            `0x${string}`,
+        transactionHash:
+            normalized.hash,
     };
 }
 
@@ -1038,34 +1011,19 @@ function buildProtectedToolUrl(
 ):
     string {
     const args =
-        parseTransactionArguments(
+        parseTransactionAnalysisArguments(
             request
         );
 
     const url =
         new URL(
-            "/api/transaction-check",
+            "/api/transaction-analysis",
             TOOL_URL
         );
 
     url.searchParams.set(
-        "from",
-        args.from
-    );
-
-    url.searchParams.set(
-        "to",
-        args.to
-    );
-
-    url.searchParams.set(
-        "valueWei",
-        args.valueWei
-    );
-
-    url.searchParams.set(
-        "data",
-        args.data
+        "transactionHash",
+        args.transactionHash
     );
 
     return url.toString();
@@ -1076,35 +1034,23 @@ function makeTamperedRequest(
         ToolRequest
 ):
     ToolRequest {
-    const args =
-        parseTransactionArguments(
-            authorizedRequest
-        );
+    /*
+     * Validate the original request first.
+     */
+    parseTransactionAnalysisArguments(
+        authorizedRequest
+    );
 
-    return parseToolRequest({
-        toolId:
-            authorizedRequest.toolId,
-
-        method:
-            authorizedRequest.method,
-
-        arguments: {
-            chainId:
-                args.chainId,
-
-            from:
-                args.from,
-
-            to:
-                ATTACK_TARGET,
-
-            valueWei:
-                args.valueWei,
-
-            data:
-                args.data,
-        },
-    });
+    /*
+     * Controlled mutation:
+     *
+     * Only the semantic transaction target changes.
+     * Tool, method, chain, merchant, token, amount and
+     * credential type remain unchanged.
+     */
+    return buildTransactionAnalysisToolRequest(
+        CONTROLLED_MUTATED_TRANSACTION_HASH
+    );
 }
 
 /*
@@ -2330,6 +2276,75 @@ async function executeAuthorization(
                 Date.now(),
         });
 
+    /*
+     * Human-readable runtime proof.
+     *
+     * This is derived from:
+     * - the exact request the user authorized,
+     * - the actual request reaching the payment boundary,
+     * - the fresh real MPP challenge,
+     * - the deterministic BOUND Guard result.
+     *
+     * No LLM participates in this comparison.
+     */
+    const authorizedArguments =
+        parseTransactionAnalysisArguments(
+            record.request
+        );
+
+    const runtimeIntent =
+        buildTransactionAnalysisIntent({
+            transactionInput:
+                authorizedArguments.transactionHash,
+
+            authorizationId:
+                record.authorization.authorizationId,
+
+            paymentToken:
+                record.authorization.paymentToken,
+
+            paymentRecipient:
+                record.authorization.paymentRecipient,
+
+            maxAmountRaw:
+                record.authorization.maxAmountRaw,
+
+            validUntil:
+                record.authorization.validUntil,
+        });
+
+    const prePaymentWhatChanged =
+        buildWhatChangedReport({
+            manifest:
+                runtimeIntent.manifest,
+
+            actualRequest,
+
+            challenge:
+                actualChallenge.payment,
+
+            guard: {
+                decision:
+                    bound.decision,
+
+                findingCode:
+                    bound.findings[0]?.code ??
+                    null,
+
+                requestMatches:
+                    bound.requestComparison?.matches ??
+                    null,
+            },
+
+            execution: {
+                payerInvoked:
+                    false,
+
+                broadcast:
+                    false,
+            },
+        });
+
     if (
         bound.decision !==
         "ALLOW"
@@ -2391,6 +2406,9 @@ async function executeAuthorization(
 
             verification:
                 bound,
+
+            whatChanged:
+                prePaymentWhatChanged,
 
             signerInvoked:
                 false,
@@ -2454,6 +2472,9 @@ async function executeAuthorization(
 
             verification:
                 bound,
+
+            whatChanged:
+                prePaymentWhatChanged,
 
             signerInvoked:
                 false,
@@ -3207,7 +3228,7 @@ function getPublicConfig() {
                 TRANSACTION_AGENT_METHOD,
 
             name:
-                "Transaction Check",
+                "Transaction Analysis",
         },
 
         payment: {
@@ -3237,14 +3258,13 @@ function getPublicConfig() {
             guardedPaymentTx:
                 FINAL_GUARDED_PAYMENT_TX,
 
-            authorizedRequestHash:
-                FINAL_AUTHORIZED_REQUEST_HASH,
-
-            tamperedRequestHash:
-                FINAL_TAMPERED_REQUEST_HASH,
-
             explorerUrl:
-                `https://testnet.bscscan.com/tx/${FINAL_GUARDED_PAYMENT_TX}`,
+                "https://" +
+                "testnet.bscscan.com/tx/" +
+                FINAL_GUARDED_PAYMENT_TX,
+
+            note:
+                "Historical successful BNB MPP payment reference. Runtime request hashes are returned by /api/execute.",
         },
     };
 }
