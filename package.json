@@ -22,7 +22,8 @@
     "api": "tsx src/api/server.ts",
     "mpp-tool": "tsx src/tool/mpp-transaction-check-server.ts",
     "mpp-payer-check": "tsx src/admin/check-mpp-payer.ts",
-    "mpp-route-check": "tsx src/admin/check-test-usdt-route.ts"
+    "mpp-route-check": "tsx src/admin/check-test-usdt-route.ts",
+    "mpp-swap-test-usdt": "tsx src/admin/swap-test-usdt.ts"
   },
   "keywords": [],
   "author": "",
