@@ -21,7 +21,8 @@
     "authorization-sign": "tsx src/admin/sign-native-authorization.ts",
     "api": "tsx src/api/server.ts",
     "mpp-tool": "tsx src/tool/mpp-transaction-check-server.ts",
-    "mpp-payer-check": "tsx src/admin/check-mpp-payer.ts"
+    "mpp-payer-check": "tsx src/admin/check-mpp-payer.ts",
+    "mpp-route-check": "tsx src/admin/check-test-usdt-route.ts"
   },
   "keywords": [],
   "author": "",
