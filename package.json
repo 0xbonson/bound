@@ -19,7 +19,8 @@
     "native-agent": "tsx src/agent/native-runner.ts",
     "user-wallet-create": "tsx src/admin/create-user-wallet.ts",
     "authorization-sign": "tsx src/admin/sign-native-authorization.ts",
-    "api": "tsx src/api/server.ts"
+    "api": "tsx src/api/server.ts",
+    "mpp-tool": "tsx src/tool/mpp-transaction-check-server.ts"
   },
   "keywords": [],
   "author": "",
