@@ -377,3 +377,105 @@ test(
     );
   }
 );
+
+
+test(
+  "adds host-controlled Agent observations to the Lens evidence catalog",
+  () => {
+    const observation = {
+      version:
+        "bound.agent-observation.v1" as const,
+
+      toolId:
+        "protocol_evidence_lookup" as const,
+
+      source:
+        "LENS_PIPELINE" as const,
+
+      status:
+        "COMPLETED" as const,
+
+      capability:
+        "protocol_identity" as const,
+
+      summary:
+        "Lens identified the protocol as PancakeSwap.",
+
+      result: {
+        status:
+          "identified" as const,
+
+        name:
+          "PancakeSwap",
+
+        category:
+          "dex" as const,
+
+        component:
+          "V2 Router",
+
+        confidence:
+          "verified" as const,
+
+        address:
+          "0x2222222222222222222222222222222222222222",
+
+        evidenceMethod:
+          "official_registry" as const,
+
+        sourceName:
+          "PancakeSwap official repository",
+
+        sourceUrl:
+          "https://github.com/pancakeswap",
+
+      },
+    };
+
+    const catalog =
+      buildLensAgentCatalog(
+        facts,
+        interpretation,
+        [
+          observation,
+        ]
+      );
+
+    const id =
+      "OBS_PROTOCOL_EVIDENCE_LOOKUP_1";
+
+    assert.match(
+      catalog.evidence[id]!,
+      /PancakeSwap/
+    );
+
+    const parsed =
+      parseLensAgentModelResponse(
+        JSON.stringify({
+          status:
+            "ANSWERED",
+
+          answer:
+            "The protocol observation identifies PancakeSwap.",
+
+          evidenceIds: [
+            id,
+          ],
+
+          limitationIds: [],
+
+          securityVerdictRequested:
+            false,
+        }),
+
+        catalog
+      );
+
+    assert.deepEqual(
+      parsed.evidenceIds,
+      [
+        id,
+      ]
+    );
+  }
+);

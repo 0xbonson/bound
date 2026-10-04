@@ -10,6 +10,11 @@ import type {
   TransactionInterpretation,
 } from "../chain/transaction-interpretation.js";
 
+import type {
+  AgentObservation,
+} from "./agent-observation.js";
+
+
 export const LENS_AGENT_VERSION =
   "bound.lens-agent.v1" as const;
 
@@ -204,12 +209,50 @@ function addCatalogEntry(
     normalized;
 }
 
+function addAgentObservationEvidence(
+  evidence:
+    Record<
+      string,
+      string
+    >,
+
+  observations:
+    readonly AgentObservation[]
+): void {
+  observations.forEach(
+    (
+      observation,
+      index
+    ) => {
+      const id =
+        `OBS_${observation.toolId.toUpperCase()}_${index + 1}`;
+
+      addCatalogEntry(
+        evidence,
+        id,
+        [
+          `Tool observation: ${observation.toolId}.`,
+          `Status: ${observation.status}.`,
+          observation.summary,
+          `Result: ${JSON.stringify(observation.result)}.`,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      );
+    }
+  );
+}
+
+
 export function buildLensAgentCatalog(
   facts:
     UniversalTransactionFacts,
 
   interpretation:
-    TransactionInterpretation
+    TransactionInterpretation,
+
+  observations:
+    readonly AgentObservation[] = []
 ): LensAgentCatalog {
   const evidence:
     Record<
@@ -399,6 +442,11 @@ export function buildLensAgentCatalog(
         );
       }
     );
+
+  addAgentObservationEvidence(
+    evidence,
+    observations
+  );
 
   return {
     evidence,
@@ -1119,6 +1167,9 @@ export async function askLensAgent(
 
     interpretation:
       TransactionInterpretation;
+
+    observations?:
+      readonly AgentObservation[];
   }
 ): Promise<
   LensAgentResult
@@ -1131,7 +1182,9 @@ export async function askLensAgent(
   const catalog =
     buildLensAgentCatalog(
       input.facts,
-      input.interpretation
+      input.interpretation,
+      input.observations ??
+        []
     );
 
   const context =
