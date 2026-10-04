@@ -96,6 +96,10 @@ import {
 } from "../agent/agent-runtime.js";
 
 import {
+    parseToolRequest,
+} from "../core/request-bound.js";
+
+import {
     buildTransactionAnalysisIntent,
     buildTransactionAnalysisToolRequest,
 } from "../core/intent-manifest.js";
@@ -1699,6 +1703,117 @@ function buildBrowserTypedData(
         message,
     };
 }
+
+/*
+ * Register an exact paid request produced by the bounded
+ * runtime directly into the existing Guard plan store.
+ *
+ * No model is called here. The request is normalized and
+ * hashed host-side before human authorization begins.
+ */
+function registerRuntimeGuardPlan(
+    input: {
+        task:
+            string;
+
+        request:
+            unknown;
+
+        model:
+            string;
+
+        summary:
+            string;
+    }
+) {
+    const request =
+        parseToolRequest(
+            input.request
+        );
+
+    const requestHash =
+        getToolRequestHash(
+            request
+        );
+
+    const now =
+        Date.now();
+
+    const id =
+        randomUUID();
+
+    const record:
+        PlanRecord = {
+        id,
+
+        createdAt:
+            now,
+
+        expiresAt:
+            now +
+            PLAN_LIFETIME_MS,
+
+        task:
+            input.task,
+
+        model:
+            input.model,
+
+        summary:
+            input.summary,
+
+        request,
+
+        requestHash,
+
+        /*
+         * This plan came from the autonomous runtime,
+         * not the legacy transaction-agent planner.
+         */
+        activity: [],
+    };
+
+    plans.set(
+        id,
+        record
+    );
+
+    return {
+        status:
+            "PROPOSED" as const,
+
+        planId:
+            id,
+
+        createdAt:
+            record.createdAt,
+
+        expiresAt:
+            record.expiresAt,
+
+        model:
+            record.model,
+
+        task:
+            record.task,
+
+        summary:
+            record.summary,
+
+        network:
+            TRANSACTION_AGENT_NETWORK,
+
+        request:
+            record.request,
+
+        requestHash:
+            record.requestHash,
+
+        activity:
+            record.activity,
+    };
+}
+
 
 /*
  * =======================================================
@@ -3810,6 +3925,35 @@ async function handleRequest(
             const agent =
                 runtime.lensAgent;
 
+            /*
+             * Crossing into Guard does not authorize, sign,
+             * execute, or pay anything. It only freezes the
+             * exact host-built request for human review.
+             */
+            const guardPlan =
+                runtime.status ===
+                    "PAUSED_FOR_AUTHORIZATION" &&
+                runtime.paidRequest !==
+                    null
+                    ? registerRuntimeGuardPlan({
+                        task:
+                            parsed.question,
+
+                        request:
+                            runtime.paidRequest,
+
+                        model:
+                            runtime.planner
+                                ?.model ??
+                            runtime.version,
+
+                        summary:
+                            runtime.planner
+                                ?.reason ??
+                            "The Agent requires a paid tool.",
+                    })
+                    : null;
+
             sendJson(
                 request,
                 response,
@@ -3836,6 +3980,8 @@ async function handleRequest(
                     },
 
                     agent,
+
+                    guardPlan,
 
                     runtime: {
                         version:
