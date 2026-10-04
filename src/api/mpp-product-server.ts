@@ -88,8 +88,12 @@ import {
 } from "../chain/lens-translation.js";
 
 import {
-    askLensAgent,
-} from "../agent/lens-agent.js";
+    deriveInitialAgentObservations,
+} from "../agent/agent-observation.js";
+
+import {
+    runAgentRuntime,
+} from "../agent/agent-runtime.js";
 
 import {
     buildTransactionAnalysisIntent,
@@ -3682,6 +3686,11 @@ async function handleRequest(
                 typeof interpretTransaction
             >;
 
+        let initialAgentObservations:
+            ReturnType<
+                typeof deriveInitialAgentObservations
+            >;
+
         try {
             facts =
                 await fetchUniversalTransactionFacts(
@@ -3707,6 +3716,18 @@ async function handleRequest(
                     facts,
                     contract
                 );
+
+            initialAgentObservations =
+                deriveInitialAgentObservations({
+                    contractLookupAttempted:
+                        facts.transaction.to !==
+                        null,
+
+                    contract,
+
+                    protocol:
+                        interpretation.protocol,
+                });
         } catch (
             error
         ) {
@@ -3769,15 +3790,25 @@ async function handleRequest(
         }
 
         try {
-            const agent =
-                await askLensAgent({
-                    question:
+            const runtime =
+                await runAgentRuntime({
+                    goal:
                         parsed.question,
 
                     facts,
 
                     interpretation,
+
+                    observations:
+                        initialAgentObservations,
                 });
+
+            /*
+             * Keep the existing `agent` response shape so the
+             * current BOUND AGENT UI remains backward-compatible.
+             */
+            const agent =
+                runtime.lensAgent;
 
             sendJson(
                 request,
@@ -3805,6 +3836,55 @@ async function handleRequest(
                     },
 
                     agent,
+
+                    runtime: {
+                        version:
+                            runtime.version,
+
+                        status:
+                            runtime.status,
+
+                        steps:
+                            runtime.steps,
+
+                        maxSteps:
+                            runtime.maxSteps,
+
+                        autoPayment:
+                            runtime.autoPayment,
+
+                        planner:
+                            runtime.planner
+                                ? {
+                                    decision:
+                                        runtime.planner
+                                            .decision,
+
+                                    requiredCapability:
+                                        runtime.planner
+                                            .requiredCapability,
+
+                                    selectedTool:
+                                        runtime.planner
+                                            .selectedTool
+                                            ?.id ??
+                                        null,
+
+                                    requiresAuthorization:
+                                        runtime.planner
+                                            .requiresAuthorization,
+                                }
+                                : null,
+
+                        observations:
+                            runtime.observations,
+
+                        activity:
+                            runtime.activity,
+
+                        paidRequest:
+                            runtime.paidRequest,
+                    },
 
                     trust: {
                         blockchainFacts:
