@@ -162,7 +162,7 @@ test(
 
         assert.equal(
             tools.length,
-            3
+            4
         );
 
         assert.equal(
@@ -558,6 +558,47 @@ test(
                 ),
 
             /SELECTED_COMPLETED_TOOL/
+        );
+    }
+);
+
+
+test(
+    "planner accepts recipient bytecode as a genuine free runtime capability",
+    () => {
+        const result =
+            parseAgentPlannerModelResponse(
+                JSON.stringify({
+                    decision:
+                        "USE_FREE_TOOL",
+
+                    toolId:
+                        "recipient_code_lookup",
+
+                    requiredCapability:
+                        "recipient_bytecode",
+
+                    reason:
+                        "The goal requires checking whether the transaction recipient has deployed bytecode.",
+                }),
+
+                baseInput
+            );
+
+        assert.equal(
+            result.decision,
+            "USE_FREE_TOOL"
+        );
+
+        assert.equal(
+            result.selectedTool
+                ?.id,
+            "recipient_code_lookup"
+        );
+
+        assert.equal(
+            result.requiresAuthorization,
+            false
         );
     }
 );

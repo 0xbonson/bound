@@ -14,6 +14,7 @@ export const AGENT_TOOL_REGISTRY_VERSION =
 export const AGENT_TOOL_CAPABILITIES = [
     "contract_identity",
     "protocol_identity",
+    "recipient_bytecode",
     "paid_transaction_analysis",
     "security_verdict",
     "token_legitimacy",
@@ -31,6 +32,7 @@ export type AgentToolCapability =
 export const AGENT_TOOL_IDS = [
     "verified_contract_lookup",
     "protocol_evidence_lookup",
+    "recipient_code_lookup",
     "transaction_analysis_paid",
 ] as const;
 
@@ -118,6 +120,30 @@ const AGENT_TOOL_REGISTRY:
 
             capabilities: [
                 "protocol_identity",
+            ],
+
+            execution:
+                "FREE_HOST",
+
+            supportedChainIds:
+                "ANY_EVM",
+        },
+
+        {
+            id:
+                "recipient_code_lookup",
+
+            name:
+                "Recipient Code Lookup",
+
+            access:
+                "FREE",
+
+            description:
+                "Check whether the transaction recipient currently has deployed EVM bytecode.",
+
+            capabilities: [
+                "recipient_bytecode",
             ],
 
             execution:

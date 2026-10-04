@@ -134,9 +134,41 @@ export type ProtocolLookupObservation = {
 };
 
 
+export type RecipientCodeObservation = {
+    version:
+        typeof AGENT_OBSERVATION_VERSION;
+
+    toolId:
+        "recipient_code_lookup";
+
+    source:
+        "RUNTIME_TOOL";
+
+    status:
+        AgentObservationStatus;
+
+    capability:
+        "recipient_bytecode";
+
+    summary:
+        string;
+
+    result: {
+        address:
+            string |
+            null;
+
+        hasDeployedBytecode:
+            boolean |
+            null;
+    };
+};
+
+
 export type AgentObservation =
     | ContractLookupObservation
-    | ProtocolLookupObservation;
+    | ProtocolLookupObservation
+    | RecipientCodeObservation;
 
 
 function buildContractObservation(
