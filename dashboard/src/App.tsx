@@ -393,6 +393,10 @@ type LensAgentResponse = {
       boolean;
   };
 
+  guardPlan:
+    | ProposedPlan
+    | null;
+
   runtime: {
     version:
       string;
@@ -482,7 +486,7 @@ type LensAgentResponse = {
       }>;
 
     paidRequest:
-      unknown |
+      ToolRequestView |
       null;
   };
 
@@ -2363,6 +2367,21 @@ function HomePage() {
       null
     );
 
+    /*
+     * A new Agent goal must never inherit a Guard plan,
+     * authorization draft, or execution state from an
+     * earlier goal.
+     */
+    setAgentPlan(
+      null
+    );
+
+    resetInlineAgentAfterPlan();
+
+    setAgentError(
+      null
+    );
+
     try {
       const result =
         await apiRequest<
@@ -2392,6 +2411,66 @@ function HomePage() {
       ) {
         throw new Error(
           "BOUND Agent returned evidence for a different transaction."
+        );
+      }
+
+      const runtimePaused =
+        result.runtime.status ===
+        "PAUSED_FOR_AUTHORIZATION";
+
+      const paidRequest =
+        result.runtime.paidRequest;
+
+      const guardPlan =
+        result.guardPlan;
+
+      if (
+        runtimePaused
+      ) {
+        if (
+          !paidRequest ||
+          !guardPlan
+        ) {
+          throw new Error(
+            "BOUND Agent paused for authorization without an exact Guard request."
+          );
+        }
+
+        const sameRequest =
+          paidRequest.toolId ===
+            guardPlan.request.toolId &&
+          paidRequest.method ===
+            guardPlan.request.method &&
+          paidRequest.arguments.chainId ===
+            guardPlan.request.arguments.chainId &&
+          paidRequest.arguments.transactionHash
+            .toLowerCase() ===
+            guardPlan.request.arguments.transactionHash
+              .toLowerCase();
+
+        const sameSubject =
+          guardPlan.request.arguments.chainId ===
+            result.subject.chainId &&
+          guardPlan.request.arguments.transactionHash
+            .toLowerCase() ===
+            transactionHash.toLowerCase();
+
+        if (
+          !sameRequest ||
+          !sameSubject
+        ) {
+          throw new Error(
+            "BOUND refused a Guard handoff because the paid request changed."
+          );
+        }
+      } else if (
+        paidRequest !==
+          null ||
+        guardPlan !==
+          null
+      ) {
+        throw new Error(
+          "BOUND Agent returned a paid Guard request without pausing for authorization."
         );
       }
 
@@ -2431,6 +2510,43 @@ function HomePage() {
       "normal"
     );
   }
+
+  function reviewRuntimeGuardPlan() {
+    const guardPlan =
+      lensAgentResponse
+        ?.guardPlan;
+
+    if (
+      lensAgentResponse
+        ?.runtime
+        .status !==
+        "PAUSED_FOR_AUTHORIZATION" ||
+      !guardPlan
+    ) {
+      setAgentError(
+        "No paused Agent request is ready for BOUND Guard."
+      );
+
+      return;
+    }
+
+    /*
+     * Human action crosses the boundary.
+     * This does not connect a wallet, sign, execute,
+     * or pay. It only selects the exact server-frozen
+     * plan for the existing Guard flow.
+     */
+    resetInlineAgentAfterPlan();
+
+    setAgentPlan(
+      guardPlan
+    );
+
+    setAgentError(
+      null
+    );
+  }
+
 
   async function runInlineAgentPlan() {
     if (
@@ -2868,6 +2984,15 @@ function HomePage() {
     agentPlan?.status ===
     "PROPOSED"
       ? agentPlan
+      : null;
+
+  const runtimeGuardPlan =
+    lensAgentResponse
+      ?.runtime
+      .status ===
+      "PAUSED_FOR_AUTHORIZATION"
+      ? lensAgentResponse
+          .guardPlan
       : null;
 
   const inlineWhatChanged =
@@ -3777,9 +3902,33 @@ function HomePage() {
                         ?.selectedTool ??
                         "a paid tool"}
                       . Nothing has been authorized,
-                      signed, or paid. Review the
-                      request in BOUND Guard below.
+                      signed, or paid. The exact
+                      request is frozen and ready
+                      for human review.
                     </p>
+
+                    {lensAgentResponse
+                      .guardPlan && (
+                      <button
+                        className="lens-agent-button"
+                        type="button"
+                        disabled={
+                          agentBusy !==
+                          null
+                        }
+                        onClick={
+                          reviewRuntimeGuardPlan
+                        }
+                      >
+                        <span>
+                          Review in BOUND Guard
+                        </span>
+
+                        <span>
+                          →
+                        </span>
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -3881,7 +4030,8 @@ function HomePage() {
               </small>
             </div>
 
-            {!proposedInlinePlan && (
+            {!proposedInlinePlan &&
+              !runtimeGuardPlan && (
               <>
                 <h2>
                   Need a paid analysis
