@@ -1451,7 +1451,7 @@ function HomePage() {
 
 
   const [
-    agentTask,
+    ,
     setAgentTask,
   ] =
     useState("");
@@ -2548,62 +2548,6 @@ function HomePage() {
   }
 
 
-  async function runInlineAgentPlan() {
-    if (
-      !agentTask.trim()
-    ) {
-      setAgentError(
-        "Tell BOUND Agent what you want analyzed."
-      );
-
-      return;
-    }
-
-    setAgentBusy(
-      "plan"
-    );
-
-    setAgentError(
-      null
-    );
-
-    resetInlineAgentAfterPlan();
-
-    try {
-      const result =
-        await apiRequest<
-          PlanResponse
-        >(
-          "/api/plan",
-          {
-            method:
-              "POST",
-
-            body: {
-              task:
-                agentTask,
-            },
-          }
-        );
-
-      setAgentPlan(
-        result
-      );
-    } catch (
-      nextError
-    ) {
-      setAgentError(
-        getErrorMessage(
-          nextError
-        )
-      );
-    } finally {
-      setAgentBusy(
-        null
-      );
-    }
-  }
-
   async function prepareInlineAuthorization() {
     if (
       agentPlan?.status !==
@@ -3013,23 +2957,79 @@ function HomePage() {
         <main className="lens-entry">
           <section className="lens-entry-inner">
             <div className="eyebrow">
-              BOUND LENS · MULTI-CHAIN EVM
+              BOUND · INTENT INTEGRITY FOR AI AGENTS
             </div>
 
             <h1>
-              Know what a
+              Let agents act.
               <br />
-              transaction
+              Keep money
               <br />
-              actually did.
+              under control.
             </h1>
 
             <p>
-              Real blockchain facts first.
-              BOUND interprets only what the
-              evidence supports. Anything
-              unknown stays unknown.
+              BOUND lets AI agents reason and use tools
+              autonomously, then freezes the exact paid
+              request before money can move.
             </p>
+
+            <div className="bound-product-story">
+              <div>
+                <span>
+                  01 · UNDERSTAND
+                </span>
+
+                <strong>
+                  BOUND LENS
+                </strong>
+
+                <p>
+                  Turn real chain evidence into
+                  human-readable intent.
+                </p>
+              </div>
+
+              <div>
+                <span>
+                  02 · DECIDE
+                </span>
+
+                <strong>
+                  BOUND AGENT
+                </strong>
+
+                <p>
+                  Reason, choose tools, observe,
+                  and re-plan autonomously.
+                </p>
+              </div>
+
+              <div>
+                <span>
+                  03 · AUTHORIZE
+                </span>
+
+                <strong>
+                  BOUND GUARD
+                </strong>
+
+                <p>
+                  Freeze paid intent and stop
+                  for explicit human approval.
+                </p>
+              </div>
+            </div>
+
+            <div className="bound-thesis">
+              <span>
+                Autonomy before the boundary.
+              </span>
+
+              <strong>
+                Deterministic authorization at the boundary.
+              </strong>
+            </div>
 
             <form
               className="lens-command"
@@ -3091,13 +3091,18 @@ function HomePage() {
               <button
                 type="button"
                 onClick={
-                  () =>
+                  () => {
+                    setLensLanguage(
+                      "English"
+                    );
+
                     setTransactionInput(
                       SAMPLE_TRANSACTION_HASH
-                    )
+                    );
+                  }
                 }
               >
-                Try real transaction
+                Load live demo
               </button>
 
               <span>
@@ -3228,6 +3233,83 @@ function HomePage() {
                   )}
             </button>
           </form>
+        </section>
+
+        <section
+          className="bound-stage-rail"
+          aria-label="BOUND product flow"
+        >
+          <div className="active">
+            <span>
+              01
+            </span>
+
+            <div>
+              <strong>
+                BOUND LENS
+              </strong>
+
+              <small>
+                UNDERSTAND
+              </small>
+            </div>
+          </div>
+
+          <i>
+            →
+          </i>
+
+          <div
+            className={
+              lensAgentResponse
+                ? "active"
+                : ""
+            }
+          >
+            <span>
+              02
+            </span>
+
+            <div>
+              <strong>
+                BOUND AGENT
+              </strong>
+
+              <small>
+                DECIDE
+              </small>
+            </div>
+          </div>
+
+          <i>
+            →
+          </i>
+
+          <div
+            className={
+              runtimeGuardPlan ||
+              proposedInlinePlan ||
+              agentDraft ||
+              agentAuthorization ||
+              agentExecution
+                ? "active guard"
+                : ""
+            }
+          >
+            <span>
+              03
+            </span>
+
+            <div>
+              <strong>
+                BOUND GUARD
+              </strong>
+
+              <small>
+                AUTHORIZE
+              </small>
+            </div>
+          </div>
         </section>
 
         <section className="lens-product-heading">
@@ -3739,30 +3821,57 @@ function HomePage() {
             </div>
 
             <div className="lens-panel-title">
-              <span>
-                BOUND AGENT
-              </span>
+                <span>
+                  BOUND AGENT
+                </span>
 
-              <small>
-                Optional deeper analysis
-              </small>
-            </div>
+                <small>
+                  AUTONOMOUS REASONING
+                </small>
+              </div>
 
-            <h2>
-              Ask anything about this
-              transaction.
-            </h2>
+              <h2>
+                Give the Agent a goal.
+              </h2>
 
-            <p>
-              Ask a free-form question in your
-              preferred language. BOUND Agent can
-              reason over Lens evidence and use
-              registered free tools when more
-              evidence is needed. Paid tools always
-              pause for explicit human authorization.
-            </p>
+              <p>
+                The Agent reasons over Lens evidence,
+                chooses registered tools, observes results,
+                and can re-plan. Free tools may run
+                autonomously. Paid tools stop at Guard.
+              </p>
 
-            <textarea
+              <div className="bound-demo-goal">
+                <div>
+                  <span>
+                    LIVE DEMO GOAL
+                  </span>
+
+                  <small>
+                    Creates a genuine evidence gap.
+                    The response is not scripted.
+                  </small>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={
+                    () => {
+                      setLensAgentQuestion(
+                        "Obtain the exact raw RPC result returned by the registered paid transaction-analysis provider for this transaction. I need evidence from that paid provider itself, not a summary inferred from the existing Lens facts."
+                      );
+
+                      setLensAgentError(
+                        null
+                      );
+                    }
+                  }
+                >
+                  Use paid-evidence goal
+                </button>
+              </div>
+
+              <textarea
               className="lens-agent-prompt"
               rows={4}
               placeholder="Ask anything about this transaction..."
@@ -3802,8 +3911,8 @@ function HomePage() {
             >
               <span>
                 {lensAgentBusy
-                  ? "BOUND Agent is answering…"
-                  : "Ask BOUND"}
+                  ? "BOUND Agent is reasoning…"
+                  : "Run Agent"}
               </span>
 
               <span>
@@ -3899,8 +4008,14 @@ function HomePage() {
                       {lensAgentResponse
                         .runtime
                         .planner
-                        ?.selectedTool ??
-                        "a paid tool"}
+                        ?.selectedTool ===
+                      "transaction_analysis_paid"
+                        ? "Transaction Analysis"
+                        : lensAgentResponse
+                            .runtime
+                            .planner
+                            ?.selectedTool ??
+                          "a paid tool"}
                       . Nothing has been authorized,
                       signed, or paid. The exact
                       request is frozen and ready
@@ -3908,7 +4023,8 @@ function HomePage() {
                     </p>
 
                     {lensAgentResponse
-                      .guardPlan && (
+                      .guardPlan &&
+                      !proposedInlinePlan && (
                       <button
                         className="lens-agent-button"
                         type="button"
@@ -4026,74 +4142,28 @@ function HomePage() {
               </span>
 
               <small>
-                Paid tool authorization
+                HUMAN PAYMENT BOUNDARY
               </small>
             </div>
 
             {!proposedInlinePlan &&
               !runtimeGuardPlan && (
-              <>
-                <h2>
-                  Need a paid analysis
-                  tool?
-                </h2>
+              <div className="bound-guard-standby">
+                <span>
+                  GUARD STANDING BY
+                </span>
+
+                <strong>
+                  No paid action requested.
+                </strong>
 
                 <p>
-                  Guard handles explicit
-                  authorization when a paid
-                  analysis tool is requested.
-                  It never runs automatically.
+                  BOUND Guard activates only when
+                  the Agent selects a paid capability.
+                  Until then, no wallet, signature,
+                  authorization, or payment is needed.
                 </p>
-
-                <textarea
-                  className="lens-agent-prompt"
-                  rows={4}
-                  placeholder="Describe the paid analysis request..."
-                  value={
-                    agentTask
-                  }
-                  onChange={
-                    (
-                      event
-                    ) => {
-                      setAgentTask(
-                        event
-                          .target
-                          .value
-                      );
-
-                      setAgentError(
-                        null
-                      );
-                    }
-                  }
-                />
-
-                <button
-                  className="lens-agent-button"
-                  type="button"
-                  disabled={
-                    agentBusy !==
-                    null
-                  }
-                  onClick={
-                    () => {
-                      void runInlineAgentPlan();
-                    }
-                  }
-                >
-                  <span>
-                    {agentBusy ===
-                    "plan"
-                      ? "Guard is preparing…"
-                      : "Plan paid request"}
-                  </span>
-
-                  <span>
-                    →
-                  </span>
-                </button>
-              </>
+              </div>
             )}
 
             {agentPlan?.status ===
@@ -4169,12 +4239,10 @@ function HomePage() {
                       REQUEST HASH
                     </span>
 
-                    <code>
+                    <code className="bound-full-hash">
                       {
-                        shortAddress(
-                          proposedInlinePlan
-                            .requestHash
-                        )
+                        proposedInlinePlan
+                          .requestHash
                       }
                     </code>
                   </div>
@@ -7597,6 +7665,15 @@ export default function App() {
   if (
     normalizedPath ===
     "/app"
+  ) {
+    return (
+      <HomePage />
+    );
+  }
+
+  if (
+    normalizedPath ===
+    "/legacy"
   ) {
     return (
       <WorkspacePage />
