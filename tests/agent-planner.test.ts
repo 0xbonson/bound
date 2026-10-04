@@ -13,6 +13,10 @@ import {
     planAgentNextStep,
 } from "../src/agent/agent-planner.js";
 
+import type {
+    AgentObservation,
+} from "../src/agent/agent-observation.js";
+
 
 const baseInput = {
     goal:
@@ -44,7 +48,109 @@ const baseInput = {
             false,
     },
 
-    completedToolIds: [],
+    observations: [],
+};
+
+
+const completedContractObservation:
+    AgentObservation = {
+    version:
+        "bound.agent-observation.v1",
+
+    toolId:
+        "verified_contract_lookup",
+
+    source:
+        "LENS_PIPELINE",
+
+    status:
+        "COMPLETED",
+
+    capability:
+        "contract_identity",
+
+    summary:
+        "Lens checked the destination contract but did not establish a verified contract identity.",
+
+    result: {
+        address:
+            "0x9Ac64Cc6e4415144C455Bd8E4837Fea55603e5c3",
+
+        verified:
+            false,
+
+        name:
+            null,
+
+        functionSignature:
+            null,
+
+        functionConfidence:
+            "unknown",
+
+        sourcifyChecked:
+            true,
+
+        sourcifyVerified:
+            false,
+
+        signatureDatabaseChecked:
+            true,
+
+        officialProtocolAbiUsed:
+            false,
+    },
+};
+
+
+const notApplicableContractObservation:
+    AgentObservation = {
+    version:
+        "bound.agent-observation.v1",
+
+    toolId:
+        "verified_contract_lookup",
+
+    source:
+        "LENS_PIPELINE",
+
+    status:
+        "NOT_APPLICABLE",
+
+    capability:
+        "contract_identity",
+
+    summary:
+        "Contract lookup was not applicable because the transaction has no destination address.",
+
+    result: {
+        address:
+            null,
+
+        verified:
+            null,
+
+        name:
+            null,
+
+        functionSignature:
+            null,
+
+        functionConfidence:
+            null,
+
+        sourcifyChecked:
+            null,
+
+        sourcifyVerified:
+            null,
+
+        signatureDatabaseChecked:
+            null,
+
+        officialProtocolAbiUsed:
+            null,
+    },
 };
 
 
@@ -77,8 +183,8 @@ test(
             buildAgentPlannerContext({
                 ...baseInput,
 
-                completedToolIds: [
-                    "verified_contract_lookup",
+                observations: [
+                    completedContractObservation,
                 ],
             });
 
@@ -195,8 +301,8 @@ test(
                     {
                         ...baseInput,
 
-                        completedToolIds: [
-                            "verified_contract_lookup",
+                        observations: [
+                            completedContractObservation,
                         ],
                     }
                 ),
@@ -372,6 +478,86 @@ test(
                 }),
 
             /UNSUPPORTED_CHAIN/
+        );
+    }
+);
+
+
+test(
+    "planner context exposes Lens observations to the reasoning layer",
+    () => {
+        const context =
+            buildAgentPlannerContext({
+                ...baseInput,
+
+                observations: [
+                    completedContractObservation,
+                ],
+            });
+
+        assert.equal(
+            context.observations.length,
+            1
+        );
+
+        assert.equal(
+            context.observations[0]
+                ?.toolId,
+            "verified_contract_lookup"
+        );
+
+        assert.equal(
+            context.observations[0]
+                ?.status,
+            "COMPLETED"
+        );
+
+        assert.equal(
+            context.availableTools
+                .find(
+                    (
+                        tool
+                    ) =>
+                        tool.id ===
+                        "verified_contract_lookup"
+                )
+                ?.alreadyCompleted,
+            true
+        );
+    }
+);
+
+
+test(
+    "not-applicable observation prevents pointless tool retry",
+    () => {
+        assert.throws(
+            () =>
+                parseAgentPlannerModelResponse(
+                    JSON.stringify({
+                        decision:
+                            "USE_FREE_TOOL",
+
+                        toolId:
+                            "verified_contract_lookup",
+
+                        requiredCapability:
+                            "contract_identity",
+
+                        reason:
+                            "Try contract lookup again.",
+                    }),
+
+                    {
+                        ...baseInput,
+
+                        observations: [
+                            notApplicableContractObservation,
+                        ],
+                    }
+                ),
+
+            /SELECTED_COMPLETED_TOOL/
         );
     }
 );

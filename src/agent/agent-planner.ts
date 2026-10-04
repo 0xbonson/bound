@@ -16,6 +16,11 @@ import {
     getLensAgentModel,
 } from "./lens-agent.js";
 
+import {
+    getCompletedAgentToolIds,
+    type AgentObservation,
+} from "./agent-observation.js";
+
 
 export const AGENT_PLANNER_VERSION =
     "bound.agent-planner.v1" as const;
@@ -119,8 +124,8 @@ export type AgentPlannerInput = {
             boolean;
     };
 
-    completedToolIds:
-        AgentToolId[];
+    observations:
+        readonly AgentObservation[];
 };
 
 
@@ -199,7 +204,7 @@ function stripJsonFence(
 
 function completedToolSet(
     ids:
-        AgentToolId[]
+        readonly AgentToolId[]
 ):
     Set<AgentToolId> {
     const known =
@@ -256,7 +261,9 @@ export function buildAgentPlannerContext(
 
     const completed =
         completedToolSet(
-            input.completedToolIds
+            getCompletedAgentToolIds(
+                input.observations
+            )
         );
 
     return {
@@ -285,6 +292,9 @@ export function buildAgentPlannerContext(
                     .lensAgent
                     .securityVerdictRequested,
         },
+
+        observations:
+            input.observations,
 
         completedToolIds: [
             ...completed,
@@ -351,7 +361,9 @@ export function validateAgentPlannerDecision(
 
     const completed =
         completedToolSet(
-            input.completedToolIds
+            getCompletedAgentToolIds(
+                input.observations
+            )
         );
 
     if (
@@ -643,6 +655,9 @@ Important rules:
 - Choose only tool IDs supplied in availableTools.
 - Respect supportedOnCurrentChain.
 - Respect alreadyCompleted.
+- Review the supplied observations before selecting another tool.
+- A completed or not-applicable observation is terminal for that tool in this task.
+- Do not retry a tool merely because its observation did not produce the desired answer.
 - A tool must explicitly list requiredCapability.
 - Never upgrade a tool's capabilities.
 - A transaction-analysis tool is NOT a security-verdict tool.
