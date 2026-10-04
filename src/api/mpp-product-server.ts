@@ -96,10 +96,6 @@ import {
 } from "../agent/agent-runtime.js";
 
 import {
-    parseToolRequest,
-} from "../core/request-bound.js";
-
-import {
     buildTransactionAnalysisIntent,
     buildTransactionAnalysisToolRequest,
 } from "../core/intent-manifest.js";
@@ -107,6 +103,11 @@ import {
 import {
     buildWhatChangedReport,
 } from "../core/what-changed.js";
+
+import {
+    buildGuardAuthorizationDraft,
+    buildRuntimeGuardPlanRecord,
+} from "../core/guard-handoff.js";
 
 import {
     MPP_REQUEST_AUTHORIZATION_VERSION,
@@ -1726,16 +1727,6 @@ function registerRuntimeGuardPlan(
             string;
     }
 ) {
-    const request =
-        parseToolRequest(
-            input.request
-        );
-
-    const requestHash =
-        getToolRequestHash(
-            request
-        );
-
     const now =
         Date.now();
 
@@ -1743,35 +1734,33 @@ function registerRuntimeGuardPlan(
         randomUUID();
 
     const record:
-        PlanRecord = {
-        id,
+        PlanRecord =
+        buildRuntimeGuardPlanRecord({
+            id,
 
-        createdAt:
             now,
 
-        expiresAt:
-            now +
-            PLAN_LIFETIME_MS,
+            lifetimeMs:
+                PLAN_LIFETIME_MS,
 
-        task:
-            input.task,
+            task:
+                input.task,
 
-        model:
-            input.model,
+            request:
+                input.request,
 
-        summary:
-            input.summary,
+            model:
+                input.model,
 
-        request,
+            summary:
+                input.summary,
 
-        requestHash,
-
-        /*
-         * This plan came from the autonomous runtime,
-         * not the legacy transaction-agent planner.
-         */
-        activity: [],
-    };
+            /*
+             * This plan came from the autonomous runtime,
+             * not the legacy transaction-agent planner.
+             */
+            activity: [],
+        });
 
     plans.set(
         id,
@@ -1979,85 +1968,40 @@ async function prepareAuthorization(
     const authorizationId =
         randomUUID();
 
-    const validUntil =
-        Math.min(
-            now +
-            USER_AUTHORIZATION_LIFETIME_MS,
+    /*
+     * The browser signs the exact quoted amount.
+     *
+     * Draft construction is pure and shared with the
+     * continuity regression test. Fetching the real MPP
+     * challenge remains outside this builder.
+     */
+    const {
+        draft,
+        authorization,
+    } =
+        buildGuardAuthorizationDraft({
+            plan,
 
-            plan.expiresAt
-        );
+            expectedSigner,
 
-    const authorization:
-        MppRequestAuthorization = {
-        authorizationId,
+            quote: {
+                payment:
+                    quote.payment,
 
-        requestHash:
-            plan.requestHash,
+                challengeId:
+                    quote.challengeId,
+            },
 
-        toolId:
-            plan.request.toolId,
-
-        method:
-            plan.request.method,
-
-        chainId:
-            quote.payment.chainId,
-
-        paymentToken:
-            quote.payment.currency,
-
-        paymentRecipient:
-            quote.payment.recipient,
-
-        /*
-         * The browser signs the exact quoted amount.
-         *
-         * We deliberately do not widen the allowance here.
-         */
-        maxAmountRaw:
-            quote.payment.amount,
-
-        credentialType:
-            "hash",
-
-        validUntil,
-    };
-
-    const draft:
-        AuthorizationDraftRecord = {
-        id:
             authorizationId,
 
-        planId:
-            plan.id,
-
-        createdAt:
             now,
 
-        expiresAt:
-            Math.min(
-                now +
+            draftLifetimeMs:
                 AUTHORIZATION_DRAFT_LIFETIME_MS,
 
-                validUntil
-            ),
-
-        expectedSigner,
-
-        request:
-            plan.request,
-
-        requestHash:
-            plan.requestHash,
-
-        authorization,
-
-        quotedPayment:
-            quote.payment,
-
-        quotedChallengeId:
-            quote.challengeId,
-    };
+            userAuthorizationLifetimeMs:
+                USER_AUTHORIZATION_LIFETIME_MS,
+        });
 
     authorizationDrafts.set(
         authorizationId,
