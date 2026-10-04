@@ -1131,6 +1131,10 @@ function Nav() {
       </a>
 
       <nav className="nav-links">
+        <a href="/">
+          Home
+        </a>
+
         <a href="/app">
           Workspace
         </a>
@@ -1182,6 +1186,530 @@ function Shell(
  * HOME
  * =======================================================
  */
+
+
+function MarketingHome() {
+  return (
+    <Shell>
+      <main className="marketing-home">
+
+        <div
+          className="home-scroll-progress"
+          aria-hidden="true"
+        />
+
+        {/* HERO */}
+        <section className="home-hero">
+          <div className="home-hero-copy">
+            <div className="eyebrow">
+              BOUND · INTENT INTEGRITY FOR AI AGENTS
+            </div>
+
+            <h1>
+              Let agents act.
+              <br />
+              Keep money
+              <br />
+              under control.
+            </h1>
+
+            <p>
+              AI agents can reason, choose tools,
+              and act autonomously. BOUND freezes
+              the exact paid action before money
+              is allowed to move.
+            </p>
+
+            <div className="home-actions">
+              <a
+                className="button primary"
+                href="/app"
+              >
+                Open Workspace →
+              </a>
+
+              <a
+                className="button ghost"
+                href="/proof"
+              >
+                See the proof
+              </a>
+            </div>
+          </div>
+
+          <div
+            className="home-orbit"
+            aria-hidden="true"
+          >
+            <div className="home-orbit-ring ring-one" />
+            <div className="home-orbit-ring ring-two" />
+            <div className="home-orbit-ring ring-three" />
+
+            <div className="home-orbit-core">
+              <span>
+                INTENT
+              </span>
+
+              <strong>
+                BOUND
+              </strong>
+            </div>
+
+            <div className="home-orbit-node node-agent">
+              AGENT
+            </div>
+
+            <div className="home-orbit-node node-tool">
+              TOOL
+            </div>
+
+            <div className="home-orbit-node node-human">
+              HUMAN
+            </div>
+          </div>
+
+          <a
+            className="home-scroll-cue"
+            href="#problem"
+          >
+            FOLLOW THE REQUEST ↓
+          </a>
+        </section>
+
+
+        {/* PROBLEM */}
+        <section
+          className="home-story-section"
+          id="problem"
+        >
+          <div className="home-section-index">
+            01 · THE GAP
+          </div>
+
+          <div className="home-story-heading">
+            <h2>
+              A wallet verifies
+              <br />
+              a signature.
+            </h2>
+
+            <div>
+              <p>
+                It does not know whether an AI agent
+                changed the tool, target, argument,
+                or amount after the human approved
+                the original intent.
+              </p>
+
+              <strong>
+                BOUND protects that missing layer.
+              </strong>
+            </div>
+          </div>
+
+          <div className="intent-flow">
+            <article>
+              <span>
+                HUMAN INTENT
+              </span>
+
+              <strong>
+                Analyze transaction A
+              </strong>
+            </article>
+
+            <i>
+              →
+            </i>
+
+            <article>
+              <span>
+                AI AGENT
+              </span>
+
+              <strong>
+                Reason + choose tool
+              </strong>
+            </article>
+
+            <i className="danger">
+              →
+            </i>
+
+            <article className="danger">
+              <span>
+                MONEY BOUNDARY
+              </span>
+
+              <strong>
+                Intent must still match
+              </strong>
+            </article>
+          </div>
+        </section>
+
+
+        {/* LOOP */}
+        <section className="home-loop-section">
+          <div className="home-section-index">
+            02 · THE BOUND LOOP
+          </div>
+
+          <div className="home-story-heading">
+            <h2>
+              Autonomous until
+              <br />
+              money matters.
+            </h2>
+
+            <p>
+              Understanding, autonomous reasoning,
+              and authorization stay separate.
+            </p>
+          </div>
+
+          <div className="home-loop-cards">
+            <article>
+              <span>
+                01 · UNDERSTAND
+              </span>
+
+              <strong>
+                BOUND LENS
+              </strong>
+
+              <p>
+                Deterministic blockchain evidence
+                comes first.
+              </p>
+            </article>
+
+            <i>
+              →
+            </i>
+
+            <article>
+              <span>
+                02 · DECIDE
+              </span>
+
+              <strong>
+                BOUND AGENT
+              </strong>
+
+              <p>
+                Reason, choose registered tools,
+                observe, and re-plan.
+              </p>
+            </article>
+
+            <i>
+              →
+            </i>
+
+            <article className="guard">
+              <span>
+                03 · AUTHORIZE
+              </span>
+
+              <strong>
+                BOUND GUARD
+              </strong>
+
+              <p>
+                Paid intent is frozen before
+                authorization continues.
+              </p>
+            </article>
+          </div>
+        </section>
+
+
+        {/* BOUNDARY */}
+        <section className="home-boundary-section">
+          <div className="home-section-index">
+            03 · THE BOUNDARY
+          </div>
+
+          <div className="home-boundary-layout">
+            <div>
+              <h2>
+                This is where
+                <br />
+                autonomy stops.
+              </h2>
+
+              <p>
+                Free tools can run autonomously.
+                When the Agent selects a paid
+                capability, BOUND pauses.
+              </p>
+            </div>
+
+            <div className="home-terminal">
+              <div className="home-terminal-title">
+                AGENT RUNTIME
+              </div>
+
+              <div>
+                <span>
+                  REASON
+                </span>
+
+                <strong>
+                  Existing evidence is insufficient.
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  PLAN
+                </span>
+
+                <strong>
+                  REQUEST_PAID_TOOL
+                </strong>
+              </div>
+
+              <div className="active">
+                <span>
+                  BOUND GUARD
+                </span>
+
+                <strong>
+                  PAUSED — HUMAN AUTHORIZATION REQUIRED
+                </strong>
+              </div>
+
+              <footer>
+                Nothing authorized.
+                Nothing signed.
+                Nothing paid.
+              </footer>
+            </div>
+          </div>
+        </section>
+
+
+        {/* EXACT ACTION */}
+        <section className="home-freeze-section">
+          <div className="home-section-index">
+            04 · THE EXACT ACTION
+          </div>
+
+          <div className="home-story-heading">
+            <h2>
+              Approve the action.
+              <br />
+              Not “approve the AI.”
+            </h2>
+
+            <p>
+              A public transaction can be the subject
+              of analysis. BOUND is authorizing the
+              paid analysis service — not replaying
+              or copy-trading that transaction.
+            </p>
+          </div>
+
+          <div className="home-freeze-grid">
+            <article>
+              <span>
+                SUBJECT
+              </span>
+
+              <code>
+                0x4185b1cb…e37450
+              </code>
+
+              <small>
+                Transaction being analyzed
+              </small>
+            </article>
+
+            <article>
+              <span>
+                PAID CAPABILITY
+              </span>
+
+              <strong>
+                Transaction Analysis
+              </strong>
+
+              <small>
+                Service requested by Agent
+              </small>
+            </article>
+
+            <article>
+              <span>
+                MAX COST
+              </span>
+
+              <strong>
+                0.001 TEST_USDT
+              </strong>
+
+              <small>
+                Spending boundary
+              </small>
+            </article>
+
+            <article className="wide">
+              <span>
+                CANONICAL REQUEST HASH
+              </span>
+
+              <code>
+                0x6b75fd0b380924e22b3936fb8c5ca44db19f92aef06beed3ead6a3d47afca628
+              </code>
+
+              <small>
+                Change the request → change the hash
+              </small>
+            </article>
+          </div>
+        </section>
+
+
+        {/* PROOF */}
+        <section className="home-proof-section">
+          <div className="home-section-index">
+            05 · PROOF, NOT PROMISES
+          </div>
+
+          <div className="home-story-heading">
+            <h2>
+              Same payment terms.
+              <br />
+              Different intent.
+            </h2>
+
+            <p>
+              BOUND recomputes the request at the
+              payment boundary. Mutation means stop.
+            </p>
+          </div>
+
+          <div className="home-proof-compare">
+            <article className="allow">
+              <span>
+                EXACT REQUEST
+              </span>
+
+              <strong>
+                ✓ ALLOW
+              </strong>
+
+              <p>
+                Authorized request still matches.
+              </p>
+            </article>
+
+            <div>
+              VS
+            </div>
+
+            <article className="block">
+              <span>
+                MUTATED REQUEST
+              </span>
+
+              <strong>
+                × BLOCK
+              </strong>
+
+              <p>
+                Tool argument changed.
+                No payment broadcast.
+              </p>
+            </article>
+          </div>
+
+          <a
+            className="home-inline-link"
+            href="/proof"
+          >
+            Inspect full verification proof →
+          </a>
+        </section>
+
+
+        {/* ECONOMY */}
+        <section className="home-economy-section">
+          <div className="home-section-index">
+            06 · THE AGENT ECONOMY
+          </div>
+
+          <div className="home-economy-layout">
+            <h2>
+              Agents will buy
+              <br />
+              more than tokens.
+            </h2>
+
+            <div className="home-service-cloud">
+              <span>DATA</span>
+              <span>APIs</span>
+              <span>COMPUTE</span>
+              <span>RESEARCH</span>
+              <span>SECURITY</span>
+              <span>ON-CHAIN INTELLIGENCE</span>
+              <span>SERVICES</span>
+
+              <strong>
+                BOUND
+              </strong>
+            </div>
+          </div>
+
+          <p className="home-economy-line">
+            The control layer between
+            autonomous reasoning and money.
+          </p>
+        </section>
+
+
+        {/* FINAL CTA */}
+        <section className="home-final-section">
+          <div className="home-final-mark">
+            B
+          </div>
+
+          <div>
+            <div className="eyebrow">
+              AUTONOMY BEFORE THE BOUNDARY
+            </div>
+
+            <h2>
+              Let agents act.
+              <br />
+              Keep money under control.
+            </h2>
+
+            <div className="home-actions">
+              <a
+                className="button primary"
+                href="/app"
+              >
+                Open Workspace →
+              </a>
+
+              <a
+                className="button ghost"
+                href="/docs"
+              >
+                Read the architecture
+              </a>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </Shell>
+  );
+}
+
 
 const LENS_UI_LABELS = {
   transactionIntelligence:
@@ -7699,6 +8227,6 @@ export default function App() {
   }
 
   return (
-    <HomePage />
+    <MarketingHome />
   );
 }
