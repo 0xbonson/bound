@@ -393,6 +393,99 @@ type LensAgentResponse = {
       boolean;
   };
 
+  runtime: {
+    version:
+      string;
+
+    status:
+      | "ANSWERED"
+      | "NEEDS_MORE_EVIDENCE"
+      | "PAUSED_FOR_AUTHORIZATION"
+      | "MAX_STEPS_REACHED";
+
+    steps:
+      number;
+
+    maxSteps:
+      number;
+
+    autoPayment:
+      false;
+
+    planner:
+      | {
+          decision:
+            | "ANSWER_NOW"
+            | "USE_FREE_TOOL"
+            | "REQUEST_PAID_TOOL"
+            | "NO_SUITABLE_TOOL";
+
+          requiredCapability:
+            string;
+
+          selectedTool:
+            string |
+            null;
+
+          requiresAuthorization:
+            boolean;
+        }
+      | null;
+
+    observations:
+      Array<{
+        version:
+          string;
+
+        toolId:
+          string;
+
+        source:
+          | "LENS_PIPELINE"
+          | "RUNTIME_TOOL";
+
+        status:
+          | "COMPLETED"
+          | "NOT_APPLICABLE";
+
+        capability:
+          string;
+
+        summary:
+          string;
+
+        result:
+          Record<
+            string,
+            unknown
+          >;
+      }>;
+
+    activity:
+      Array<{
+        step:
+          number;
+
+        phase:
+          | "REASON"
+          | "PLAN"
+          | "ACT"
+          | "OBSERVE"
+          | "PAUSE"
+          | "STOP";
+
+        message:
+          string;
+
+        toolId?:
+          string;
+      }>;
+
+    paidRequest:
+      unknown |
+      null;
+  };
+
   trust: {
     blockchainFacts:
       "deterministic";
@@ -2266,6 +2359,10 @@ function HomePage() {
       null
     );
 
+    setLensAgentResponse(
+      null
+    );
+
     try {
       const result =
         await apiRequest<
@@ -3533,10 +3630,11 @@ function HomePage() {
 
             <p>
               Ask a free-form question in your
-              preferred language. BOUND Agent
-              answers from the transaction
-              evidence already resolved by Lens.
-              No wallet or payment is required.
+              preferred language. BOUND Agent can
+              reason over Lens evidence and use
+              registered free tools when more
+              evidence is needed. Paid tools always
+              pause for explicit human authorization.
             </p>
 
             <textarea
@@ -3617,6 +3715,73 @@ function HomePage() {
                     }
                   </p>
                 </div>
+
+                <div className="lens-agent-review">
+                  <div>
+                    <span>
+                      AGENT RUN
+                    </span>
+
+                    <strong>
+                      {lensAgentResponse
+                        .runtime
+                        .status ===
+                      "PAUSED_FOR_AUTHORIZATION"
+                        ? "PAUSED — HUMAN AUTHORIZATION REQUIRED"
+                        : `${lensAgentResponse.runtime.status} · ${lensAgentResponse.runtime.steps}/${lensAgentResponse.runtime.maxSteps} autonomous steps`}
+                    </strong>
+                  </div>
+
+                  {lensAgentResponse
+                    .runtime
+                    .activity
+                    .map(
+                      (
+                        item,
+                        index
+                      ) => (
+                        <div
+                          key={
+                            `agent-runtime-${index}`
+                          }
+                        >
+                          <span>
+                            {item.step ===
+                            0
+                              ? item.phase
+                              : `STEP ${item.step} · ${item.phase}`}
+                          </span>
+
+                          <strong>
+                            {item.message}
+                          </strong>
+                        </div>
+                      )
+                    )}
+                </div>
+
+                {lensAgentResponse
+                  .runtime
+                  .status ===
+                  "PAUSED_FOR_AUTHORIZATION" && (
+                  <div className="lens-agent-message">
+                    <strong>
+                      BOUND GUARD REQUIRED
+                    </strong>
+
+                    <p>
+                      The Agent selected{" "}
+                      {lensAgentResponse
+                        .runtime
+                        .planner
+                        ?.selectedTool ??
+                        "a paid tool"}
+                      . Nothing has been authorized,
+                      signed, or paid. Review the
+                      request in BOUND Guard below.
+                    </p>
+                  </div>
+                )}
 
                 {lensAgentResponse
                   .agent
