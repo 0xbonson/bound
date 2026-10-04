@@ -350,6 +350,65 @@ type PublicConfig = {
   };
 };
 
+type LensAgentResponse = {
+  version: string;
+
+  subject: {
+    transactionHash: string;
+    network: string;
+    chainId: number;
+  };
+
+  agent: {
+    version: string;
+
+    status:
+      | "ANSWERED"
+      | "NEEDS_MORE_EVIDENCE";
+
+    answer: string;
+
+    evidence:
+      string[];
+
+    limitations:
+      string[];
+
+    moreEvidenceNeeded:
+      boolean;
+
+    toolNeeded:
+      false;
+
+    model:
+      string;
+
+    groundedInLensFacts:
+      boolean;
+
+    securityDecision:
+      false;
+
+    securityVerdictRequested:
+      boolean;
+  };
+
+  trust: {
+    blockchainFacts:
+      "deterministic";
+
+    aiUsedForAnswer:
+      true;
+
+    aiUsedForFacts:
+      false;
+
+    aiUsedForSecurityDecision:
+      false;
+  };
+};
+
+
 type TransactionInspectionResponse = {
   version: string;
 
@@ -1258,6 +1317,43 @@ function HomePage() {
     );
 
   const [
+    lensAgentQuestion,
+    setLensAgentQuestion,
+  ] =
+    useState("");
+
+  const [
+    lensAgentResponse,
+    setLensAgentResponse,
+  ] =
+    useState<
+      LensAgentResponse |
+      null
+    >(
+      null
+    );
+
+  const [
+    lensAgentBusy,
+    setLensAgentBusy,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    lensAgentError,
+    setLensAgentError,
+  ] =
+    useState<
+      string |
+      null
+    >(
+      null
+    );
+
+
+  const [
     agentTask,
     setAgentTask,
   ] =
@@ -2073,6 +2169,18 @@ function HomePage() {
         customLensLanguage
       );
 
+      setLensAgentQuestion(
+        ""
+      );
+
+      setLensAgentResponse(
+        null
+      );
+
+      setLensAgentError(
+        null
+      );
+
       setAgentTask(
         ""
       );
@@ -2114,6 +2222,100 @@ function HomePage() {
       );
     }
   }
+
+  async function askInlineLensAgent() {
+    const question =
+      lensAgentQuestion
+        .trim();
+
+    if (
+      !inspection
+    ) {
+      setLensAgentError(
+        "Inspect a transaction before asking BOUND Agent."
+      );
+
+      return;
+    }
+
+    if (
+      !question
+    ) {
+      setLensAgentError(
+        "Ask BOUND Agent a question about this transaction."
+      );
+
+      return;
+    }
+
+    /*
+     * Bind the Agent request to the transaction currently
+     * displayed by Lens — not to editable browser input.
+     */
+    const transactionHash =
+      inspection
+        .facts
+        .subject
+        .transactionHash;
+
+    setLensAgentBusy(
+      true
+    );
+
+    setLensAgentError(
+      null
+    );
+
+    try {
+      const result =
+        await apiRequest<
+          LensAgentResponse
+        >(
+          "/api/agent",
+          {
+            method:
+              "POST",
+
+            body: {
+              input:
+                transactionHash,
+
+              question,
+            },
+          }
+        );
+
+      if (
+        result
+          .subject
+          .transactionHash
+          .toLowerCase() !==
+        transactionHash
+          .toLowerCase()
+      ) {
+        throw new Error(
+          "BOUND Agent returned evidence for a different transaction."
+        );
+      }
+
+      setLensAgentResponse(
+        result
+      );
+    } catch (
+      nextError
+    ) {
+      setLensAgentError(
+        getErrorMessage(
+          nextError
+        )
+      );
+    } finally {
+      setLensAgentBusy(
+        false
+      );
+    }
+  }
+
 
   function resetInlineAgentAfterPlan() {
     setAgentDraft(
@@ -3324,22 +3526,214 @@ function HomePage() {
               </small>
             </div>
 
+            <h2>
+              Ask anything about this
+              transaction.
+            </h2>
+
+            <p>
+              Ask a free-form question in your
+              preferred language. BOUND Agent
+              answers from the transaction
+              evidence already resolved by Lens.
+              No wallet or payment is required.
+            </p>
+
+            <textarea
+              className="lens-agent-prompt"
+              rows={4}
+              placeholder="Ask anything about this transaction..."
+              value={
+                lensAgentQuestion
+              }
+              onChange={
+                (
+                  event
+                ) => {
+                  setLensAgentQuestion(
+                    event
+                      .target
+                      .value
+                  );
+
+                  setLensAgentError(
+                    null
+                  );
+                }
+              }
+            />
+
+            <button
+              className="lens-agent-button"
+              type="button"
+              disabled={
+                lensAgentBusy ||
+                !lensAgentQuestion
+                  .trim()
+              }
+              onClick={
+                () => {
+                  void askInlineLensAgent();
+                }
+              }
+            >
+              <span>
+                {lensAgentBusy
+                  ? "BOUND Agent is answering…"
+                  : "Ask BOUND"}
+              </span>
+
+              <span>
+                →
+              </span>
+            </button>
+
+            {lensAgentError && (
+              <div
+                className="lens-agent-error"
+                role="alert"
+              >
+                {lensAgentError}
+              </div>
+            )}
+
+            {lensAgentResponse && (
+              <>
+                <div className="lens-agent-message">
+                  <strong>
+                    {lensAgentResponse
+                      .agent
+                      .status ===
+                    "NEEDS_MORE_EVIDENCE"
+                      ? "MORE EVIDENCE NEEDED"
+                      : "ANSWER"}
+                  </strong>
+
+                  <p>
+                    {
+                      lensAgentResponse
+                        .agent
+                        .answer
+                    }
+                  </p>
+                </div>
+
+                {lensAgentResponse
+                  .agent
+                  .evidence
+                  .length >
+                  0 && (
+                  <div className="lens-agent-review">
+                    {lensAgentResponse
+                      .agent
+                      .evidence
+                      .map(
+                        (
+                          evidence,
+                          index
+                        ) => (
+                          <div
+                            key={
+                              `agent-evidence-${index}`
+                            }
+                          >
+                            <span>
+                              EVIDENCE {
+                                index +
+                                1
+                              }
+                            </span>
+
+                            <strong>
+                              {evidence}
+                            </strong>
+                          </div>
+                        )
+                      )}
+                  </div>
+                )}
+
+                {lensAgentResponse
+                  .agent
+                  .limitations
+                  .length >
+                  0 && (
+                  <div className="lens-agent-review">
+                    {lensAgentResponse
+                      .agent
+                      .limitations
+                      .map(
+                        (
+                          limitation,
+                          index
+                        ) => (
+                          <div
+                            key={
+                              `agent-limitation-${index}`
+                            }
+                          >
+                            <span>
+                              LIMITATION {
+                                index +
+                                1
+                              }
+                            </span>
+
+                            <strong>
+                              {limitation}
+                            </strong>
+                          </div>
+                        )
+                      )}
+                  </div>
+                )}
+
+                <div className="lens-evidence-row">
+                  <span>
+                    ✓ Deterministic blockchain facts
+                  </span>
+
+                  <span>
+                    ✓ AI used for answer only
+                  </span>
+
+                  <span>
+                    ✓ No security verdict
+                  </span>
+                </div>
+              </>
+            )}
+
+            <div className="lens-agent-section-divider" />
+
+            <div className="lens-panel-title">
+              <span>
+                BOUND GUARD
+              </span>
+
+              <small>
+                Paid tool authorization
+              </small>
+            </div>
+
             {!proposedInlinePlan && (
               <>
                 <h2>
-                  What do you want
-                  to know?
+                  Need a paid analysis
+                  tool?
                 </h2>
 
                 <p>
-                  Ask BOUND Agent only when
-                  you want deeper analysis
-                  beyond the free Lens result.
+                  Guard handles explicit
+                  authorization when a paid
+                  analysis tool is requested.
+                  It never runs automatically.
                 </p>
 
                 <textarea
                   className="lens-agent-prompt"
                   rows={4}
+                  placeholder="Describe the paid analysis request..."
                   value={
                     agentTask
                   }
@@ -3376,8 +3770,8 @@ function HomePage() {
                   <span>
                     {agentBusy ===
                     "plan"
-                      ? "Agent is planning…"
-                      : "Plan exact request"}
+                      ? "Guard is preparing…"
+                      : "Plan paid request"}
                   </span>
 
                   <span>

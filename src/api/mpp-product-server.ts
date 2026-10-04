@@ -88,6 +88,10 @@ import {
 } from "../chain/lens-translation.js";
 
 import {
+    askLensAgent,
+} from "../agent/lens-agent.js";
+
+import {
     buildTransactionAnalysisIntent,
     buildTransactionAnalysisToolRequest,
 } from "../core/intent-manifest.js";
@@ -321,6 +325,31 @@ const lensTranslationRequestSchema =
                 )
               .optional(),
     });
+
+const lensAgentRequestSchema =
+    z.object({
+        input:
+            z.string()
+                .trim()
+                .min(
+                    1
+                )
+                .max(
+                    500
+                ),
+
+        question:
+            z.string()
+                .trim()
+                .min(
+                    1
+                )
+                .max(
+                    2_000
+                ),
+    })
+        .strict();
+
 
 const planRequestSchema =
     z.object({
@@ -3595,6 +3624,229 @@ async function handleRequest(
             return;
         }
     }
+
+    if (
+        request.method ===
+            "POST" &&
+        url.pathname ===
+            "/api/agent"
+    ) {
+        const parsed =
+            lensAgentRequestSchema
+                .parse(
+                    await readJsonBody(
+                        request
+                    )
+                );
+
+        let normalizedInput:
+            ReturnType<
+                typeof normalizeUniversalTransactionInput
+            >;
+
+        try {
+            normalizedInput =
+                normalizeUniversalTransactionInput(
+                    parsed.input
+                );
+        } catch (
+            error
+        ) {
+            sendJson(
+                request,
+                response,
+                400,
+                {
+                    error:
+                        "INVALID_TRANSACTION_INPUT",
+
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Invalid transaction input.",
+                }
+            );
+
+            return;
+        }
+
+        let facts:
+            Awaited<
+                ReturnType<
+                    typeof fetchUniversalTransactionFacts
+                >
+            >;
+
+        let interpretation:
+            ReturnType<
+                typeof interpretTransaction
+            >;
+
+        try {
+            facts =
+                await fetchUniversalTransactionFacts(
+                    parsed.input
+                );
+
+            const contract =
+                facts.transaction.to
+                    ? await resolveContractIntelligence({
+                        chainId:
+                            facts.subject.chainId,
+
+                        address:
+                            facts.transaction.to,
+
+                        calldata:
+                            facts.transaction.input,
+                    })
+                    : null;
+
+            interpretation =
+                interpretTransaction(
+                    facts,
+                    contract
+                );
+        } catch (
+            error
+        ) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Transaction inspection failed.";
+
+            let statusCode =
+                502;
+
+            let errorCode =
+                "TRANSACTION_LOOKUP_FAILED";
+
+            if (
+                message.includes(
+                    "found on multiple supported networks"
+                )
+            ) {
+                statusCode =
+                    409;
+
+                errorCode =
+                    "AMBIGUOUS_TRANSACTION_NETWORK";
+            } else if (
+                message.includes(
+                    "could not determine the transaction network"
+                )
+            ) {
+                statusCode =
+                    503;
+
+                errorCode =
+                    "NETWORK_DISCOVERY_INCONCLUSIVE";
+            } else if (
+                message.includes(
+                    "Transaction not found on the networks currently supported by BOUND."
+                )
+            ) {
+                statusCode =
+                    404;
+
+                errorCode =
+                    "TRANSACTION_NOT_FOUND";
+            }
+
+            sendJson(
+                request,
+                response,
+                statusCode,
+                {
+                    error:
+                        errorCode,
+
+                    message,
+                }
+            );
+
+            return;
+        }
+
+        try {
+            const agent =
+                await askLensAgent({
+                    question:
+                        parsed.question,
+
+                    facts,
+
+                    interpretation,
+                });
+
+            sendJson(
+                request,
+                response,
+                200,
+                {
+                    version:
+                        "bound.lens-agent-response.v1",
+
+                    input:
+                        normalizedInput,
+
+                    subject: {
+                        transactionHash:
+                            facts.subject
+                                .transactionHash,
+
+                        network:
+                            facts.subject
+                                .network,
+
+                        chainId:
+                            facts.subject
+                                .chainId,
+                    },
+
+                    agent,
+
+                    trust: {
+                        blockchainFacts:
+                            "deterministic",
+
+                        aiUsedForAnswer:
+                            true,
+
+                        aiUsedForFacts:
+                            false,
+
+                        aiUsedForSecurityDecision:
+                            false,
+                    },
+                }
+            );
+
+            return;
+        } catch (
+            error
+        ) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Lens Agent failed.";
+
+            sendJson(
+                request,
+                response,
+                502,
+                {
+                    error:
+                        "LENS_AGENT_FAILED",
+
+                    message,
+                }
+            );
+
+            return;
+        }
+    }
+
 
     if (
         request.method ===
