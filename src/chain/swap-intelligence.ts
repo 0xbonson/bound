@@ -627,7 +627,7 @@ export function resolveSwapIntelligence(
       received,
 
       summary:
-        `You swapped ${displayAsset(sent)} for ${displayAsset(received)} through ${protocol.name}.`,
+        `This transaction swapped ${displayAsset(sent)} for ${displayAsset(received)} through ${protocol.name}.`,
 
       reason:
         "The verified DEX swap call sent native value and the wallet received one token asset.",
@@ -698,7 +698,7 @@ export function resolveSwapIntelligence(
       received,
 
       summary:
-        `You swapped ${displayAsset(sent)} for ${displayAsset(received)} through ${protocol.name}.`,
+        `This transaction swapped ${displayAsset(sent)} for ${displayAsset(received)} through ${protocol.name}.`,
 
       reason:
         "The verified DEX swap call produced one outgoing and one incoming token effect for the wallet.",

@@ -546,7 +546,7 @@ function buildPlainEnglish(
         : "";
 
     return (
-      "You sent " +
+      "The sender transferred " +
       amount +
       " " +
       asset +
@@ -572,7 +572,7 @@ function buildPlainEnglish(
     "native_transfer"
   ) {
     return (
-      "You sent " +
+      "The sender transferred " +
       facts.transaction
         .nativeValueFormatted +
       " " +
@@ -621,7 +621,7 @@ function buildPlainEnglish(
       : "";
 
   return (
-    "You interacted with a smart contract on " +
+    "This transaction interacted with a smart contract on " +
     facts.subject.network +
     "." +
     functionText +

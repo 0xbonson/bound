@@ -84,6 +84,10 @@ import {
 } from "../chain/transaction-interpretation.js";
 
 import {
+    translateLensText,
+} from "../chain/lens-translation.js";
+
+import {
     buildTransactionAnalysisIntent,
     buildTransactionAnalysisToolRequest,
 } from "../core/intent-manifest.js";
@@ -277,6 +281,45 @@ const transactionInspectRequestSchema =
                 .max(
                     500
                 ),
+    });
+
+const lensTranslationRequestSchema =
+    z.object({
+        text:
+            z.string()
+              .trim()
+              .min(
+                    1
+                )
+              .max(
+                    5_000
+                ),
+
+        targetLanguage:
+            z.string()
+              .trim()
+              .min(
+                    2
+                )
+              .max(
+                    64
+                ),
+
+        protectedTerms:
+            z.array(
+                z.string()
+                  .trim()
+                  .min(
+                        1
+                    )
+                  .max(
+                        200
+                    )
+            )
+              .max(
+                    100
+                )
+              .optional(),
     });
 
 const planRequestSchema =
@@ -3551,6 +3594,42 @@ async function handleRequest(
 
             return;
         }
+    }
+
+    if (
+        request.method ===
+        "POST" &&
+        url.pathname ===
+        "/api/translate"
+    ) {
+        const parsed =
+            lensTranslationRequestSchema
+                .parse(
+                    await readJsonBody(
+                        request
+                    )
+                );
+
+        const result =
+            await translateLensText({
+                text:
+                    parsed.text,
+
+                targetLanguage:
+                    parsed.targetLanguage,
+
+                protectedTerms:
+                    parsed.protectedTerms,
+            });
+
+        sendJson(
+            request,
+            response,
+            200,
+            result
+        );
+
+        return;
     }
 
     if (

@@ -266,7 +266,7 @@ test(
 
     assert.match(
       result.plainEnglish,
-      /You sent 0\.001 USDT/
+      /The sender transferred 0\.001 USDT/
     );
   }
 );

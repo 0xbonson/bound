@@ -1,548 +1,584 @@
 import {
+  useEffect,
   useMemo,
   useState,
+  type ReactNode,
 } from "react";
 
 import "./App.css";
 
+/*
+ * =======================================================
+ * WALLET
+ * =======================================================
+ */
+
 type Eip1193Provider = {
   request: (input: {
     method: string;
-    params?:
-    | unknown[]
-    | Record<string, unknown>;
+    params?: unknown[] | Record<string, unknown>;
   }) => Promise<unknown>;
 };
 
 declare global {
   interface Window {
-    ethereum?:
-    Eip1193Provider;
+    ethereum?: Eip1193Provider;
   }
 }
 
-type PurchaseIntent = {
-  supported:
-  boolean;
-
-  action:
-  "purchase";
-
-  resourceId:
-  string | null;
-
-  chainId:
-  number;
-
-  network:
-  string;
-
-  assetSymbol:
-  string;
-
-  maxAmountTbnb:
-  string | null;
-
-  needsClarification:
-  boolean;
-
-  clarification:
-  string | null;
-};
-
-type IntentResponse = {
-  readyForAuthorization:
-  boolean;
-
-  intentId:
-  string | null;
-
-  createdAt?:
-  number;
-
-  expiresAt?:
-  number;
-
-  intent:
-  PurchaseIntent;
-};
-
-type AuthorizationDraftResponse = {
-  authorizationId:
-  string;
-
-  intentId:
-  string;
-
-  createdAt:
-  number;
-
-  draftExpiresAt:
-  number;
-
-  expectedSigner:
-  string;
-
-  authorization: {
-    resourceId:
-    string;
-
-    chainId:
-    number;
-
-    network:
-    string;
-
-    assetType:
-    string;
-
-    assetSymbol:
-    string;
-
-    maxAmountWei:
-    string;
-
-    maxAmountTbnb:
-    string;
-
-    trustedSourceId:
-    string;
-
-    validUntil:
-    number;
-  };
-
-  typedData: {
-    domain:
-    Record<
-      string,
-      unknown
-    >;
-
-    primaryType:
-    string;
-
-    types:
-    Record<
-      string,
-      unknown
-    >;
-
-    message:
-    Record<
-      string,
-      unknown
-    >;
-  };
-};
-
-type ConfirmedAuthorization = {
-  confirmed:
-  true;
-
-  authorizationId:
-  string;
-
-  intentId:
-  string;
-
-  confirmedAt:
-  number;
-
-  signer:
-  string;
-
-  authorization: {
-    resourceId:
-    string;
-
-    chainId:
-    number;
-
-    assetType:
-    string;
-
-    assetSymbol:
-    string;
-
-    maxAmountWei:
-    string;
-
-    maxAmountTbnb:
-    string;
-
-    trustedSourceId:
-    string;
-
-    validUntil:
-    number;
-  };
-};
-
-type RawNativeTransaction = {
-  chainId:
-  number;
-
-  to:
-  string;
-
-  valueWei:
-  string;
-
-  data:
-  string;
-};
-
-type VerificationFinding = {
-  code:
-  string;
-
-  message:
-  string;
-};
-
-type Verification = {
-  decision:
-  "ALLOW" |
-  "BLOCK" |
-  "NEEDS_REAUTHORIZATION";
-
-  findings:
-  VerificationFinding[];
-};
-
-type Comparison = {
-  recipient: {
-    expected:
-    string;
-
-    actual:
-    string;
-
-    matches:
-    boolean;
-  };
-
-  amount: {
-    expectedWei:
-    string;
-
-    actualWei:
-    string;
-
-    matches:
-    boolean;
-  };
-
-  chain: {
-    expected:
-    number;
-
-    actual:
-    number;
-
-    matches:
-    boolean;
-  };
-
-  calldata: {
-    expected:
-    string;
-
-    actual:
-    string;
-
-    matches:
-    boolean;
-  };
-};
-
-type AgentActivity = {
-  step:
-  string;
-
-  message:
-  string;
-};
-
-type ContextMutation = {
-  field:
-  "recipient";
-
-  signedValue:
-  string;
-
-  modelVisibleValue:
-  string;
-};
-
-type AgentRunResponse =
-  | {
-    status:
-    "NO_PROPOSAL";
-
-    sessionCreated:
-    false;
-
-    agent: {
-      status:
-      "NO_PROPOSAL";
-
-      model:
-      string;
-
-      task:
-      string;
-
-      message:
-      string;
-
-      quote:
-      unknown;
-
-      activity:
-      AgentActivity[];
-
-      contextMutation?:
-      ContextMutation;
-    };
-  }
-  | {
-    status:
-    "SESSION_CREATED";
-
-    sessionCreated:
-    true;
-
-    sessionId:
-    string;
-
-    createdAt:
-    number;
-
-    expiresAt:
-    number;
-
-    authorization: {
-      signatureScheme:
-      string;
-
-      signer:
-      string;
-
-      authorizationId:
-      string;
-
-      resourceId:
-      string;
-
-      chainId:
-      number;
-
-      assetType:
-      string;
-
-      assetSymbol:
-      string;
-
-      maxAmountWei:
-      string;
-
-      maxAmountTbnb:
-      string;
-
-      trustedSourceId:
-      string;
-
-      validUntil:
-      number;
-    };
-
-    evidence: {
-      signatureScheme:
-      string;
-
-      evidenceId:
-      string;
-
-      sourceId:
-      string;
-
-      resourceId:
-      string;
-
-      chainId:
-      number;
-
-      assetType:
-      string;
-
-      assetSymbol:
-      string;
-
-      recipient:
-      string;
-
-      amountWei:
-      string;
-
-      amountTbnb:
-      string;
-
-      nonce:
-      string;
-
-      issuedAt:
-      number;
-
-      expiresAt:
-      number;
-    };
-
-    transaction:
-    RawNativeTransaction;
-
-    verification:
-    Verification;
-
-    comparison:
-    Comparison;
-
-    signerInvoked:
-    false;
-
-    broadcast:
-    false;
-
-    agent: {
-      status:
-      "PROPOSED";
-
-      model:
-      string;
-
-      task:
-      string;
-
-      activity:
-      AgentActivity[];
-
-      proposal: {
-        chainId:
-        number;
-
-        recipient:
-        string;
-
-        valueWei:
-        string;
-
-        data:
-        string;
-      };
-
-      contextMutation?:
-      ContextMutation;
-    };
-  };
-
-type VerifyResponse = {
-  sessionId:
-  string;
-
-  verification:
-  Verification;
-
-  comparison:
-  Comparison;
-
-  signerInvoked:
-  false;
-
-  broadcast:
-  false;
-};
-
-type ReplayResponse = {
-  sessionId:
-  string;
-
-  verification:
-  Verification;
-
-  firstGate:
-  {
-    decision:
-    string;
-
-    findings?:
-    VerificationFinding[];
-  };
-
-  secondGate:
-  {
-    decision:
-    string;
-
-    findings?:
-    VerificationFinding[];
-  };
-
-  signerInvoked:
-  false;
-
-  broadcast:
-  false;
-
-  note:
-  string;
-};
-
-type ApiErrorBody = {
-  error?:
-  string;
-
-  message?:
-  string;
-};
+/*
+ * =======================================================
+ * API TYPES
+ * =======================================================
+ */
 
 type Scenario =
   | "normal"
-  | "poisoned";
+  | "tampered";
+
+type TransactionArguments = {
+  chainId: number;
+  transactionHash: string;
+};
+
+type ToolRequestView = {
+  toolId: string;
+  method: string;
+  arguments: TransactionArguments;
+};
+
+type AgentActivity = {
+  step: string;
+  message: string;
+};
+
+type ProposedPlan = {
+  status: "PROPOSED";
+  planId: string;
+  createdAt: number;
+  expiresAt: number;
+  model: string;
+  task: string;
+  summary: string;
+  network: string;
+  request: ToolRequestView;
+  requestHash: string;
+  activity: AgentActivity[];
+};
+
+type NoProposalPlan = {
+  status: "NO_PROPOSAL";
+  model: string;
+  task: string;
+  message: string;
+  activity: AgentActivity[];
+};
+
+type PlanResponse =
+  | ProposedPlan
+  | NoProposalPlan;
+
+type PaymentPresentation = {
+  protocol: string;
+  network: string;
+  chainId: number;
+  token: string;
+  tokenContract: string;
+  recipient: string;
+  amountRaw: string;
+  amount: string;
+  credentialType: string;
+
+  payer?: string;
+  payerSourceDid?: string;
+  estimatedGasUnits?: string;
+  txHash?: string;
+  confirmedBlock?: string;
+  explorerUrl?: string;
+};
+
+type MppAuthorizationView = {
+  authorizationId: string;
+  requestHash: string;
+  toolId: string;
+  method: string;
+  chainId: number;
+  paymentToken: string;
+  paymentRecipient: string;
+  maxAmountRaw: string;
+  credentialType: "hash";
+  validUntil: number;
+};
+
+type AuthorizationDraftResponse = {
+  authorizationId: string;
+  planId: string;
+  createdAt: number;
+  draftExpiresAt: number;
+  expectedSigner: string;
+
+  request: ToolRequestView;
+  requestHash: string;
+
+  payment: PaymentPresentation;
+
+  authorization: MppAuthorizationView;
+
+  typedData: {
+    domain: Record<string, unknown>;
+    primaryType: string;
+    types: Record<string, unknown>;
+    message: Record<string, unknown>;
+  };
+
+  note: string;
+};
+
+type ConfirmedAuthorization = {
+  confirmed: true;
+  authorizationId: string;
+  planId: string;
+  confirmedAt: number;
+  signer: string;
+
+  request: ToolRequestView;
+  requestHash: string;
+
+  payment: PaymentPresentation;
+  authorization: MppAuthorizationView;
+
+  executionState: string;
+};
+
+type VerificationFinding = {
+  code: string;
+  message: string;
+
+  expected?: unknown;
+  actual?: unknown;
+};
+
+type BoundVerification = {
+  decision:
+  | "ALLOW"
+  | "BLOCK"
+  | "NEEDS_REAUTHORIZATION";
+
+  findings: VerificationFinding[];
+
+  [key: string]:
+  unknown;
+};
+
+type ExecutionRequestView = {
+  authorized: ToolRequestView;
+  actual: ToolRequestView;
+
+  authorizedRequestHash: string;
+  actualRequestHash: string;
+
+  matches: boolean;
+};
+
+type PaymentTermsComparison = {
+  sameChain: boolean;
+  sameToken: boolean;
+  sameRecipient: boolean;
+  sameAmount: boolean;
+  sameCredentialType: boolean;
+};
+
+type ChangeStatus =
+  | "SAME"
+  | "CHANGED"
+  | "WITHIN_AUTHORIZATION";
+
+type WhatChangedReport = {
+  version: string;
+
+  decision:
+  | "ALLOW"
+  | "BLOCK"
+  | "NEEDS_REAUTHORIZATION";
+
+  comparison: {
+    transaction: ChangeStatus;
+    analysisTool: ChangeStatus;
+    network: ChangeStatus;
+    price: ChangeStatus;
+    token: ChangeStatus;
+    merchant: ChangeStatus;
+    request: ChangeStatus;
+  };
+
+  authorized: {
+    transactionHash: string;
+    requestHash: string;
+    toolId: string;
+    method: string;
+    chainId: number;
+    maxAmountRaw: string;
+    paymentToken: string;
+    paymentRecipient: string;
+  };
+
+  actual: {
+    transactionHash: string | null;
+    requestHash: string;
+    toolId: string;
+    method: string;
+    chainId: number | null;
+    amountRaw: string;
+    paymentToken: string;
+    paymentRecipient: string;
+  };
+
+  outcome: {
+    title: string;
+    message: string;
+    paymentStopped: boolean;
+    payerInvoked: boolean;
+    broadcast: boolean;
+  };
+
+  technical: {
+    findingCode: string | null;
+    authorizedRequestHash: string;
+    actualRequestHash: string;
+  };
+};
+
+type ExecuteResponse = {
+  status:
+  | "STOPPED"
+  | "READY"
+  | "COMPLETED"
+  | "PAYMENT_BROADCAST_BUT_INCOMPLETE"
+  | "EXECUTION_FAILED_BEFORE_PAYMENT";
+
+  scenario: Scenario;
+  message: string;
+
+  request?: ExecutionRequestView;
+
+  payment?: PaymentPresentation;
+
+  paymentTerms?: PaymentTermsComparison;
+
+  verification?: BoundVerification;
+
+  whatChanged?: WhatChangedReport;
+
+  signerInvoked?: boolean;
+  paymentSimulationInvoked?: boolean;
+  paymentBroadcast?: boolean;
+
+  paymentTxHash?:
+  | string
+  | null;
+
+  payerTokenDeltaRaw?: string;
+  merchantTokenDeltaRaw?: string;
+
+  realPaymentEnabled?: boolean;
+
+  receipt?: {
+    status: string;
+    chainId: number;
+    reference: string;
+    matchesPaymentTx: boolean;
+  };
+
+  toolResult?: {
+    source?: string;
+    network?: string;
+    chainId?: number;
+    blockNumber?: string;
+    checkedTransaction?: unknown;
+    rpcResult?: unknown;
+  };
+
+  audit?: {
+    signerInvoked: boolean;
+    paymentSimulationInvoked: boolean;
+    paymentBroadcast: boolean;
+
+    payerTokenDecrease: string;
+    merchantTokenIncrease: string;
+
+    tokenSymbol: string;
+
+    payerTbnbBefore: string;
+    payerTbnbAfter: string;
+
+    privateKeyPrinted: boolean;
+  };
+
+  error?: string;
+
+  explorerUrl?:
+  | string
+  | null;
+
+  retryAutomatically?: boolean;
+};
+
+type PublicConfig = {
+  product: string;
+  network: string;
+  chainId: number;
+
+  tool: {
+    id: string;
+    method: string;
+    name: string;
+  };
+
+  payment: {
+    protocol: string;
+    token: string;
+    tokenContract: string;
+    recipient: string;
+    maximum: string;
+    realExecutionEnabled: boolean;
+  };
+
+  proof: {
+    guardedPaymentTx: string;
+    explorerUrl: string;
+    note: string;
+  };
+};
+
+type TransactionInspectionResponse = {
+  version: string;
+
+  input: {
+    hash: string;
+    source:
+      | "transaction_hash"
+      | "explorer_url";
+    networkHint: {
+      id: string;
+      name: string;
+      chainId: number;
+      nativeSymbol: string;
+    } | null;
+    explorerHost: string | null;
+  };
+
+  facts: {
+    subject: {
+      chainId: number;
+      networkId: string;
+      network: string;
+      nativeSymbol: string;
+      transactionHash: string;
+      explorerUrl: string;
+    };
+
+    transaction: {
+      status:
+        | "success"
+        | "reverted";
+      from: string;
+      to: string | null;
+      blockNumber: string;
+      blockTimestamp: string;
+      nativeValueWei: string;
+      nativeValueFormatted: string;
+      nativeSymbol: string;
+      transactionFeeWei: string;
+      transactionFeeFormatted: string;
+      selector: string | null;
+    };
+
+    action: {
+      type: string;
+      selector?: string | null;
+    };
+
+    tokenTransfers: Array<{
+      token: string;
+      symbol: string | null;
+      decimals: number | null;
+      from: string;
+      to: string;
+      amountRaw: string;
+      amountFormatted: string | null;
+    }>;
+  };
+
+  interpretation: {
+    headline: string;
+    plainEnglish: string;
+
+    status:
+      | "success"
+      | "reverted";
+
+    network: {
+      name: string;
+      chainId: number;
+      nativeSymbol: string;
+    };
+
+    interaction: {
+      type: string;
+      functionName: string | null;
+      functionSignature: string | null;
+      functionConfidence: string;
+      contractAddress: string | null;
+      contractName: string | null;
+      contractVerified: boolean;
+    } | null;
+
+    protocol: {
+      status: string;
+      name: string | null;
+      category: string | null;
+      component: string | null;
+      confidence: string;
+      address: string | null;
+      reason: string;
+    };
+
+    swap: {
+      status: string;
+      kind: string | null;
+
+      sent: {
+        type:
+          | "native"
+          | "token";
+        address: string | null;
+        symbol: string | null;
+        amountRaw: string;
+        amountFormatted: string;
+      } | null;
+
+      received: {
+        type:
+          | "native"
+          | "token";
+        address: string | null;
+        symbol: string | null;
+        amountRaw: string;
+        amountFormatted: string;
+      } | null;
+
+      summary: string | null;
+      reason: string;
+      completeAssetFlow: boolean;
+    };
+
+    observedWalletEffect: {
+      wallet: string;
+
+      tokenEffects: Array<{
+        token: string;
+        symbol: string | null;
+        decimals: number | null;
+        direction:
+          | "in"
+          | "out";
+        amountRaw: string;
+        amountFormatted: string;
+        counterparties: string[];
+      }>;
+
+      topLevelNativeSent: {
+        amountWei: string;
+        amountFormatted: string;
+        symbol: string;
+      } | null;
+
+      networkFee: {
+        amountWei: string;
+        amountFormatted: string;
+        symbol: string;
+      };
+
+      completeNativeNetEffect: boolean;
+    };
+
+    whatWeKnow: string[];
+    whatWeCannotProve: string[];
+  };
+
+  trust: {
+    blockchainFacts: "deterministic";
+    networkResolution: string;
+    verifiedAbiUsed: boolean;
+    officialProtocolAbiUsed: boolean;
+    aiUsedForFacts: false;
+    aiUsedForExplanation: false;
+    aiUsedForSecurityDecision: false;
+  };
+};
+
+type LensTranslationResponse = {
+  version: "bound.lens-translation.v1";
+
+  status:
+    | "canonical"
+    | "translated"
+    | "fallback";
+
+  language: string;
+  text: string;
+  canonicalText: string;
+  modelUsed: boolean;
+  integrityPreserved: boolean;
+};
+
+type ApiErrorBody = {
+  error?: string;
+  message?: string;
+};
+
+/*
+ * =======================================================
+ * CONSTANTS
+ * =======================================================
+ */
 
 const API_BASE =
-  import.meta.env
-    .VITE_BOUND_API_URL ??
-  "http://127.0.0.1:8791";
+  import.meta.env.VITE_BOUND_API_URL ??
+  "http://" + "127.0.0.1:8791";
 
 const BSC_TESTNET_CHAIN_ID =
   "0x61";
 
 const BSC_TESTNET_RPC =
-  "https://data-seed-prebsc-1-s1.bnbchain.org:8545/";
+  "https://" + "bsc-testnet-dataseed.bnbchain.org";
 
 const BSC_TESTNET_EXPLORER =
-  "https://testnet.bscscan.com";
+  "https://" + "testnet.bscscan.com";
 
-const PROOF_TRANSACTION =
-  "0x611eb86dd76f5879873a07065429d7a999fbd046a15c3327cc4ecf99b55cb675";
+const GUARDED_PAYMENT_TX =
+  "0x4185b1cb8dea410022833f66443230ebda0548178a18f10c92b635b44ee37450";
 
-const ATTACK_RECIPIENT =
-  "0x2222222222222222222222222222222222222222";
+const SAMPLE_TRANSACTION_HASH =
+  GUARDED_PAYMENT_TX;
 
-const ALTERED_AMOUNT_WEI =
-  "4321000000000000";
+const CONTROLLED_TAMPER_TRANSACTION_HASH =
+  "0x2222222222222222222222222222222222222222222222222222222222222222";
+
+const DEFAULT_TASK =
+  `Analyze this BSC Testnet transaction: ${SAMPLE_TRANSACTION_HASH}`;
+
+/*
+ * =======================================================
+ * API
+ * =======================================================
+ */
 
 async function apiRequest<T>(
-  path:
-    string,
+  path: string,
   options?: {
-    method?:
-    "GET" |
-    "POST";
-
-    body?:
-    unknown;
+    method?: "GET" | "POST";
+    body?: unknown;
   }
 ): Promise<T> {
   const response =
@@ -590,10 +626,32 @@ async function apiRequest<T>(
   return body;
 }
 
+/*
+ * =======================================================
+ * DISPLAY HELPERS
+ * =======================================================
+ */
+
+function getErrorMessage(
+  error: unknown
+) {
+  if (
+    error instanceof
+    Error
+  ) {
+    return error.message;
+  }
+
+  return String(
+    error
+  );
+}
+
 function formatAddress(
   value:
-    string | null |
-    undefined
+    | string
+    | null
+    | undefined
 ) {
   if (
     !value
@@ -603,23 +661,51 @@ function formatAddress(
 
   if (
     value.length <=
-    16
+    22
   ) {
     return value;
   }
 
   return `${value.slice(
     0,
-    8
+    10
   )}…${value.slice(
-    -6
+    -8
+  )}`;
+}
+
+function formatHash(
+  value:
+    | string
+    | null
+    | undefined
+) {
+  if (
+    !value
+  ) {
+    return "—";
+  }
+
+  if (
+    value.length <=
+    28
+  ) {
+    return value;
+  }
+
+  return `${value.slice(
+    0,
+    14
+  )}…${value.slice(
+    -10
   )}`;
 }
 
 function formatTimestamp(
   value:
-    number | null |
-    undefined
+    | number
+    | null
+    | undefined
 ) {
   if (
     !value
@@ -644,58 +730,44 @@ function formatTimestamp(
   );
 }
 
-function formatWei(
-  raw:
-    string
-) {
-  try {
-    const value =
-      BigInt(
-        raw
-      );
-
-    const whole =
-      value /
-      10n ** 18n;
-
-    const fraction =
-      (
-        value %
-        10n ** 18n
-      )
-        .toString()
-        .padStart(
-          18,
-          "0"
-        )
-        .replace(
-          /0+$/,
-          ""
-        );
-
-    return fraction
-      ? `${whole}.${fraction}`
-      : whole.toString();
-  } catch {
-    return raw;
-  }
-}
-
-function getErrorMessage(
-  error:
-    unknown
+function boolLabel(
+  value:
+    | boolean
+    | undefined
 ) {
   if (
-    error instanceof
-    Error
+    value ===
+    undefined
   ) {
-    return error.message;
+    return "—";
   }
 
-  return String(
-    error
-  );
+  return value
+    ? "YES"
+    : "NO";
 }
+
+function safeJson(
+  value: unknown
+) {
+  try {
+    return JSON.stringify(
+      value,
+      null,
+      2
+    );
+  } catch {
+    return String(
+      value
+    );
+  }
+}
+
+/*
+ * =======================================================
+ * WALLET HELPERS
+ * =======================================================
+ */
 
 function getProvider() {
   const provider =
@@ -733,8 +805,7 @@ async function ensureBscTestnet(
   ) {
     const walletError =
       error as {
-        code?:
-        number;
+        code?: number;
       };
 
     if (
@@ -780,6 +851,113 @@ async function ensureBscTestnet(
   }
 }
 
+async function requestWalletAddress():
+  Promise<string> {
+  const provider =
+    getProvider();
+
+  await ensureBscTestnet(
+    provider
+  );
+
+  const accounts =
+    await provider.request({
+      method:
+        "eth_requestAccounts",
+    });
+
+  if (
+    !Array.isArray(
+      accounts
+    ) ||
+    typeof accounts[0] !==
+    "string"
+  ) {
+    throw new Error(
+      "The wallet did not return an account."
+    );
+  }
+
+  return accounts[0];
+}
+
+/*
+ * =======================================================
+ * SMALL UI COMPONENTS
+ * =======================================================
+ */
+
+function Field(
+  props: {
+    label: string;
+    children: ReactNode;
+  }
+) {
+  return (
+    <div>
+      <span className="field-label">
+        {props.label}
+      </span>
+
+      {props.children}
+    </div>
+  );
+}
+
+function SideField(
+  props: {
+    label: string;
+    children: ReactNode;
+  }
+) {
+  return (
+    <div className="side-field">
+      <span>
+        {props.label}
+      </span>
+
+      {props.children}
+    </div>
+  );
+}
+
+function ComparisonRow(
+  props: {
+    label: string;
+    value: boolean;
+    trueLabel?: string;
+    falseLabel?: string;
+  }
+) {
+  return (
+    <div className="comparison-row">
+      <span>
+        {props.label}
+      </span>
+
+      <strong
+        className={
+          props.value
+            ? "match"
+            : "mismatch"
+        }
+      >
+        {props.value
+          ? props.trueLabel ??
+          "MATCH"
+          : props.falseLabel ??
+          "BREAK"}
+      </strong>
+    </div>
+  );
+}
+
+/*
+ * =======================================================
+ * SITE SHELL
+ * =======================================================
+ */
+
 function Nav() {
   return (
     <header className="site-nav">
@@ -816,7 +994,7 @@ function Nav() {
 function Shell(
   props: {
     children:
-    React.ReactNode;
+    ReactNode;
   }
 ) {
   return (
@@ -831,237 +1009,3236 @@ function Shell(
         </span>
 
         <span>
-          Context integrity at the signer boundary.
+          Exact-request authorization
+          for agent payments.
         </span>
 
         <span>
-          BSC Testnet prototype
+          Multi-chain Lens · BSC Testnet Agent prototype
         </span>
       </footer>
     </div>
   );
 }
 
+/*
+ * =======================================================
+ * HOME
+ * =======================================================
+ */
+
+const LENS_UI_LABELS = {
+  transactionIntelligence:
+    "Transaction intelligence",
+
+  transactionDecoded:
+    "Transaction decoded",
+
+  block:
+    "Block",
+
+  success:
+    "Success",
+
+  reverted:
+    "Reverted",
+
+  sender:
+    "Sender",
+
+  originWallet:
+    "Origin wallet",
+
+  protocol:
+    "Protocol",
+
+  tokenContract:
+    "Token contract",
+
+  nativeAsset:
+    "Native asset",
+
+  destination:
+    "Destination",
+
+  nativeTransfer:
+    "Native transfer",
+
+  transferEvent:
+    "Transfer event",
+
+  transfer:
+    "Transfer",
+
+  observedResult:
+    "Observed result",
+
+  received:
+    "Received",
+
+  recipient:
+    "Recipient",
+
+  walletReceived:
+    "Wallet received",
+
+  outcome:
+    "Outcome",
+
+  observedSwap:
+    "Observed swap",
+
+  nativeToToken:
+    "Native to token",
+
+  tokenToToken:
+    "Token to token",
+
+  tokenToNative:
+    "Token to native",
+
+  receivedLower:
+    "received",
+
+  tokenMovementsLower:
+    "token movements",
+
+  noOutgoingAsset:
+    "No outgoing asset movement",
+
+  noIncomingAsset:
+    "No incoming asset movement observed",
+
+  whatHappened:
+    "What happened",
+
+  evidenceGrounded:
+    "Evidence-grounded interpretation",
+
+  language:
+    "Language",
+
+  otherLanguage:
+    "Other language…",
+
+  typeAnyLanguage:
+    "Type any language",
+
+  apply:
+    "Apply",
+
+  translating:
+    "Translating…",
+
+  unknownBehavior:
+    "Unknown behavior",
+
+  boundWillNotGuess:
+    "BOUND will not guess the contract's intent.",
+
+  insufficientEvidence:
+    "The available evidence is not enough to identify this contract interaction with confidence.",
+
+  rpcFacts:
+    "RPC facts",
+
+  deterministicInterpretation:
+    "Deterministic interpretation",
+
+  noSecurityVerdict:
+    "No security verdict",
+
+  nativeValue:
+    "Native value",
+
+  networkFee:
+    "Network fee",
+
+  function:
+    "Function",
+
+  tokenMovements:
+    "Token movements",
+
+  rawTransaction:
+    "Raw transaction",
+
+  analyze:
+    "Analyze",
+
+  reading:
+    "Reading…",
+} as const;
+
+type LensUiKey =
+  keyof typeof LENS_UI_LABELS;
+
 function HomePage() {
+  const [
+    lensLanguage,
+    setLensLanguage,
+  ] =
+    useState(
+      "auto"
+    );
+
+  const [
+    customLensLanguage,
+    setCustomLensLanguage,
+  ] =
+    useState(
+      ""
+    );
+
+  const [
+    translatedExplanation,
+    setTranslatedExplanation,
+  ] =
+    useState<
+      string |
+      null
+    >(
+      null
+    );
+
+  const [
+    translationBusy,
+    setTranslationBusy,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    translationError,
+    setTranslationError,
+  ] =
+    useState<
+      string |
+      null
+    >(
+      null
+    );
+
+
+  const [
+    transactionInput,
+    setTransactionInput,
+  ] =
+    useState("");
+
+  const [
+    inspection,
+    setInspection,
+  ] =
+    useState<
+      TransactionInspectionResponse |
+      null
+    >(
+      null
+    );
+
+  const [
+    inspecting,
+    setInspecting,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    inspectionError,
+    setInspectionError,
+  ] =
+    useState<
+      string |
+      null
+    >(
+      null
+    );
+
+  const [
+    agentTask,
+    setAgentTask,
+  ] =
+    useState("");
+
+  const [
+    agentWallet,
+    setAgentWallet,
+  ] =
+    useState<
+      string |
+      null
+    >(
+      null
+    );
+
+  const [
+    agentPlan,
+    setAgentPlan,
+  ] =
+    useState<
+      PlanResponse |
+      null
+    >(
+      null
+    );
+
+  const [
+    agentDraft,
+    setAgentDraft,
+  ] =
+    useState<
+      AuthorizationDraftResponse |
+      null
+    >(
+      null
+    );
+
+  const [
+    agentAuthorization,
+    setAgentAuthorization,
+  ] =
+    useState<
+      ConfirmedAuthorization |
+      null
+    >(
+      null
+    );
+
+  const [
+    agentScenario,
+    setAgentScenario,
+  ] =
+    useState<Scenario>(
+      "normal"
+    );
+
+  const [
+    agentExecution,
+    setAgentExecution,
+  ] =
+    useState<
+      ExecuteResponse |
+      null
+    >(
+      null
+    );
+
+  const [
+    agentBusy,
+    setAgentBusy,
+  ] =
+    useState<
+      string |
+      null
+    >(
+      null
+    );
+
+  const [
+    agentError,
+    setAgentError,
+  ] =
+    useState<
+      string |
+      null
+    >(
+      null
+    );
+
+  const [
+    translatedUiLabels,
+    setTranslatedUiLabels,
+  ] =
+    useState<
+      Partial<
+        Record<
+          LensUiKey,
+          string
+        >
+      >
+    >(
+      {}
+    );
+
+  const [
+    translatedHeadline,
+    setTranslatedHeadline,
+  ] =
+    useState<
+      string |
+      null
+    >(
+      null
+    );
+
+  const [
+    uiTranslationBusy,
+    setUiTranslationBusy,
+  ] =
+    useState(
+      false
+    );
+
+  function uiLabel(
+    key:
+      LensUiKey
+  ) {
+    return (
+      translatedUiLabels[
+        key
+      ] ??
+      LENS_UI_LABELS[
+        key
+      ]
+    );
+  }
+
+  function swapKindLabel(
+    kind:
+      string |
+      null
+  ) {
+    if (
+      kind ===
+      "native_to_token"
+    ) {
+      return uiLabel(
+        "nativeToToken"
+      );
+    }
+
+    if (
+      kind ===
+      "token_to_token"
+    ) {
+      return uiLabel(
+        "tokenToToken"
+      );
+    }
+
+    if (
+      kind ===
+      "token_to_native"
+    ) {
+      return uiLabel(
+        "tokenToNative"
+      );
+    }
+
+    return uiLabel(
+      "observedSwap"
+    );
+  }
+
+  function shortAddress(
+    value:
+      string |
+      null |
+      undefined
+  ) {
+    if (
+      !value
+    ) {
+      return "—";
+    }
+
+    if (
+      value.length <=
+      18
+    ) {
+      return value;
+    }
+
+    return `${value.slice(
+      0,
+      8
+    )}…${value.slice(
+      -6
+    )}`;
+  }
+
+  function resolveLensLanguage(
+    choice:
+      string,
+    customLanguage:
+      string
+  ) {
+    if (
+      choice ===
+      "auto"
+    ) {
+      return (
+        navigator.language ||
+        "en"
+      );
+    }
+
+    if (
+      choice ===
+      "custom"
+    ) {
+      return customLanguage
+        .trim();
+    }
+
+    return choice;
+  }
+
+  function getTranslationProtectedTerms(
+    result:
+      TransactionInspectionResponse
+  ) {
+    const transaction =
+      result.facts
+        .transaction;
+
+    const candidates = [
+      result.facts
+        .subject
+        .network,
+
+      result.facts
+        .subject
+        .nativeSymbol,
+
+      result.facts
+        .subject
+        .transactionHash,
+
+      transaction.from,
+      transaction.to,
+
+      result.interpretation
+        .network
+        .name,
+
+      result.interpretation
+        .network
+        .nativeSymbol,
+
+      result.interpretation
+        .protocol
+        .name,
+
+      result.interpretation
+        .interaction
+        ?.functionName,
+
+      result.interpretation
+        .interaction
+        ?.functionSignature,
+
+      ...result.facts
+        .tokenTransfers
+        .flatMap(
+          (
+            transfer
+          ) => [
+            transfer.symbol,
+            transfer.token,
+            transfer.from,
+            transfer.to,
+          ]
+        ),
+    ];
+
+    return [
+      ...new Set(
+        candidates.filter(
+          (
+            value
+          ): value is string =>
+            typeof value ===
+              "string" &&
+            value.length >
+              0
+        )
+      ),
+    ].slice(
+      0,
+      100
+    );
+  }
+
+  async function translateInspectionExplanation(
+    result:
+      TransactionInspectionResponse,
+    languageChoice:
+      string,
+    customLanguage:
+      string
+  ) {
+    const targetLanguage =
+      resolveLensLanguage(
+        languageChoice,
+        customLanguage
+      );
+
+    const canonicalText =
+      result.interpretation
+        .plainEnglish;
+
+    if (
+      !targetLanguage
+    ) {
+      setTranslatedExplanation(
+        null
+      );
+
+      setTranslationError(
+        "Enter a language first."
+      );
+
+      return;
+    }
+
+    if (
+      targetLanguage
+        .toLowerCase() ===
+        "english" ||
+      targetLanguage
+        .toLowerCase() ===
+        "en" ||
+      targetLanguage
+        .toLowerCase()
+        .startsWith(
+          "en-"
+        )
+    ) {
+      setTranslatedExplanation(
+        canonicalText
+      );
+
+      setTranslationError(
+        null
+      );
+
+      return;
+    }
+
+    setTranslationBusy(
+      true
+    );
+
+    setTranslationError(
+      null
+    );
+
+    try {
+      const translation =
+        await apiRequest<
+          LensTranslationResponse
+        >(
+          "/api/translate",
+          {
+            method:
+              "POST",
+
+            body: {
+              text:
+                canonicalText,
+
+              targetLanguage,
+
+              protectedTerms:
+                getTranslationProtectedTerms(
+                  result
+                ),
+            },
+          }
+        );
+
+      if (
+        translation.status ===
+        "translated" &&
+        translation
+          .integrityPreserved
+      ) {
+        setTranslatedExplanation(
+          translation.text
+        );
+
+        return;
+      }
+
+      setTranslatedExplanation(
+        null
+      );
+
+      setTranslationError(
+        "Translation unavailable — showing canonical English."
+      );
+    } catch {
+      setTranslatedExplanation(
+        null
+      );
+
+      setTranslationError(
+        "Translation unavailable — showing canonical English."
+      );
+    } finally {
+      setTranslationBusy(
+        false
+      );
+    }
+  }
+
+  async function translateLensUiLabels(
+    result:
+      TransactionInspectionResponse,
+    languageChoice:
+      string,
+    customLanguage:
+      string
+  ) {
+    const targetLanguage =
+      resolveLensLanguage(
+        languageChoice,
+        customLanguage
+      );
+
+    if (
+      !targetLanguage
+    ) {
+      return;
+    }
+
+    const normalizedLanguage =
+      targetLanguage
+        .trim()
+        .toLowerCase();
+
+    if (
+      normalizedLanguage ===
+        "en" ||
+      normalizedLanguage ===
+        "english" ||
+      normalizedLanguage
+        .startsWith(
+          "en-"
+        )
+    ) {
+      setTranslatedUiLabels(
+        {}
+      );
+
+      setTranslatedHeadline(
+        null
+      );
+
+      return;
+    }
+
+    const labelEntries =
+      Object.entries(
+        LENS_UI_LABELS
+      ) as Array<
+        [
+          LensUiKey,
+          string
+        ]
+      >;
+
+    const entries:
+      Array<
+        [
+          string,
+          string
+        ]
+      > = [
+        [
+          "headline",
+          result
+            .interpretation
+            .headline,
+        ],
+        ...labelEntries,
+      ];
+
+    const markers =
+      entries.map(
+        (
+          _entry,
+          index
+        ) =>
+          `__BOUND_UI_${index}__`
+      );
+
+    const bundle =
+      entries
+        .map(
+          (
+            entry,
+            index
+          ) =>
+            `${markers[index]} ${entry[1]}`
+        )
+        .join(
+          "\n"
+        );
+
+    setUiTranslationBusy(
+      true
+    );
+
+    try {
+      const protectedTerms = [
+        ...markers,
+        ...getTranslationProtectedTerms(
+          result
+        ),
+      ].slice(
+        0,
+        100
+      );
+
+      const translation =
+        await apiRequest<
+          LensTranslationResponse
+        >(
+          "/api/translate",
+          {
+            method:
+              "POST",
+
+            body: {
+              text:
+                bundle,
+
+              targetLanguage,
+
+              protectedTerms,
+            },
+          }
+        );
+
+      if (
+        translation.status !==
+          "translated" ||
+        !translation
+          .integrityPreserved
+      ) {
+        setTranslatedUiLabels(
+          {}
+        );
+
+        setTranslatedHeadline(
+          null
+        );
+
+        setTranslationError(
+          "UI translation unavailable — showing canonical English labels."
+        );
+
+        return;
+      }
+
+      const translatedValues =
+        new Map<
+          string,
+          string
+        >();
+
+      /*
+       * Gemini may preserve every protected marker
+       * while changing line breaks or marker order.
+       *
+       * Do not assume markers are returned in the
+       * same order as the canonical bundle.
+       */
+      const locatedMarkers =
+        markers.map(
+          (
+            markerValue,
+            index
+          ) => ({
+            markerValue,
+            index,
+            position:
+              translation.text
+                .indexOf(
+                  markerValue
+                ),
+          })
+        );
+
+      if (
+        locatedMarkers.some(
+          (
+            item
+          ) =>
+            item.position ===
+            -1
+        )
+      ) {
+        throw new Error(
+          "Missing UI translation marker."
+        );
+      }
+
+      locatedMarkers.sort(
+        (
+          left,
+          right
+        ) =>
+          left.position -
+          right.position
+      );
+
+      for (
+        let orderIndex = 0;
+        orderIndex <
+        locatedMarkers.length;
+        orderIndex += 1
+      ) {
+        const current =
+          locatedMarkers[
+            orderIndex
+          ];
+
+        const next =
+          locatedMarkers[
+            orderIndex + 1
+          ];
+
+        const contentStart =
+          current.position +
+          current.markerValue.length;
+
+        const contentEnd =
+          next
+            ? next.position
+            : translation
+                .text
+                .length;
+
+        const value =
+          translation.text
+            .slice(
+              contentStart,
+              contentEnd
+            )
+            .trim()
+            .replace(
+              /^[:\-–—]\s*/,
+              ""
+            )
+            .trim();
+
+        if (
+          !value
+        ) {
+          throw new Error(
+            "Empty translated UI label."
+          );
+        }
+
+        translatedValues.set(
+          entries[
+            current.index
+          ][0],
+          value
+        );
+      }
+
+      const nextUiLabels:
+        Partial<
+          Record<
+            LensUiKey,
+            string
+          >
+        > = {};
+
+      for (
+        const [
+          key,
+        ] of
+        labelEntries
+      ) {
+        const translatedValue =
+          translatedValues.get(
+            key
+          );
+
+        if (
+          !translatedValue
+        ) {
+          throw new Error(
+            `Missing translated label: ${key}`
+          );
+        }
+
+        nextUiLabels[
+          key
+        ] =
+          translatedValue;
+      }
+
+      setTranslatedUiLabels(
+        nextUiLabels
+      );
+
+      setTranslatedHeadline(
+        translatedValues.get(
+          "headline"
+        ) ??
+        null
+      );
+    } catch {
+      setTranslatedUiLabels(
+        {}
+      );
+
+      setTranslatedHeadline(
+        null
+      );
+
+      setTranslationError(
+        "UI translation unavailable — showing canonical English labels."
+      );
+    } finally {
+      setUiTranslationBusy(
+        false
+      );
+    }
+  }
+
+  async function inspectTransaction() {
+    const input =
+      transactionInput
+        .trim();
+
+    if (
+      !input
+    ) {
+      setInspectionError(
+        "Paste an EVM transaction hash or explorer URL."
+      );
+
+      return;
+    }
+
+    setInspecting(
+      true
+    );
+
+    setInspectionError(
+      null
+    );
+
+    setTranslatedExplanation(
+      null
+    );
+
+    setTranslatedHeadline(
+      null
+    );
+
+    setTranslationError(
+      null
+    );
+
+    try {
+      const result =
+        await apiRequest<
+          TransactionInspectionResponse
+        >(
+          "/api/inspect",
+          {
+            method:
+              "POST",
+
+            body: {
+              input,
+            },
+          }
+        );
+
+      setInspection(
+        result
+      );
+
+      void translateInspectionExplanation(
+        result,
+        lensLanguage,
+        customLensLanguage
+      );
+
+      void translateLensUiLabels(
+        result,
+        lensLanguage,
+        customLensLanguage
+      );
+
+      setAgentTask(
+        ""
+      );
+
+      setAgentPlan(
+        null
+      );
+
+      setAgentDraft(
+        null
+      );
+
+      setAgentAuthorization(
+        null
+      );
+
+      setAgentExecution(
+        null
+      );
+
+      setAgentScenario(
+        "normal"
+      );
+
+      setAgentError(
+        null
+      );
+    } catch (
+      nextError
+    ) {
+      setInspectionError(
+        getErrorMessage(
+          nextError
+        )
+      );
+    } finally {
+      setInspecting(
+        false
+      );
+    }
+  }
+
+  function resetInlineAgentAfterPlan() {
+    setAgentDraft(
+      null
+    );
+
+    setAgentAuthorization(
+      null
+    );
+
+    setAgentExecution(
+      null
+    );
+
+    setAgentScenario(
+      "normal"
+    );
+  }
+
+  async function runInlineAgentPlan() {
+    if (
+      !agentTask.trim()
+    ) {
+      setAgentError(
+        "Tell BOUND Agent what you want analyzed."
+      );
+
+      return;
+    }
+
+    setAgentBusy(
+      "plan"
+    );
+
+    setAgentError(
+      null
+    );
+
+    resetInlineAgentAfterPlan();
+
+    try {
+      const result =
+        await apiRequest<
+          PlanResponse
+        >(
+          "/api/plan",
+          {
+            method:
+              "POST",
+
+            body: {
+              task:
+                agentTask,
+            },
+          }
+        );
+
+      setAgentPlan(
+        result
+      );
+    } catch (
+      nextError
+    ) {
+      setAgentError(
+        getErrorMessage(
+          nextError
+        )
+      );
+    } finally {
+      setAgentBusy(
+        null
+      );
+    }
+  }
+
+  async function prepareInlineAuthorization() {
+    if (
+      agentPlan?.status !==
+      "PROPOSED"
+    ) {
+      setAgentError(
+        "Let BOUND Agent plan the exact request first."
+      );
+
+      return;
+    }
+
+    setAgentBusy(
+      "prepare"
+    );
+
+    setAgentError(
+      null
+    );
+
+    setAgentDraft(
+      null
+    );
+
+    setAgentAuthorization(
+      null
+    );
+
+    setAgentExecution(
+      null
+    );
+
+    try {
+      let activeWallet =
+        agentWallet;
+
+      if (
+        !activeWallet
+      ) {
+        activeWallet =
+          await requestWalletAddress();
+
+        setAgentWallet(
+          activeWallet
+        );
+      }
+
+      const result =
+        await apiRequest<
+          AuthorizationDraftResponse
+        >(
+          "/api/authorization/prepare",
+          {
+            method:
+              "POST",
+
+            body: {
+              planId:
+                agentPlan.planId,
+
+              walletAddress:
+                activeWallet,
+            },
+          }
+        );
+
+      setAgentDraft(
+        result
+      );
+    } catch (
+      nextError
+    ) {
+      setAgentError(
+        getErrorMessage(
+          nextError
+        )
+      );
+    } finally {
+      setAgentBusy(
+        null
+      );
+    }
+  }
+
+  async function signInlineAuthorization() {
+    if (
+      !agentDraft
+    ) {
+      setAgentError(
+        "Prepare the authorization first."
+      );
+
+      return;
+    }
+
+    if (
+      !agentWallet
+    ) {
+      setAgentError(
+        "Connect the wallet first."
+      );
+
+      return;
+    }
+
+    setAgentBusy(
+      "sign"
+    );
+
+    setAgentError(
+      null
+    );
+
+    try {
+      const provider =
+        getProvider();
+
+      await ensureBscTestnet(
+        provider
+      );
+
+      const rawSignature =
+        await provider.request({
+          method:
+            "eth_signTypedData_v4",
+
+          params: [
+            agentWallet,
+            JSON.stringify(
+              agentDraft.typedData
+            ),
+          ],
+        });
+
+      if (
+        typeof rawSignature !==
+        "string"
+      ) {
+        throw new Error(
+          "The wallet did not return an EIP-712 signature."
+        );
+      }
+
+      const confirmed =
+        await apiRequest<
+          ConfirmedAuthorization
+        >(
+          "/api/authorization/confirm",
+          {
+            method:
+              "POST",
+
+            body: {
+              authorizationId:
+                agentDraft.authorizationId,
+
+              signature:
+                rawSignature,
+            },
+          }
+        );
+
+      setAgentAuthorization(
+        confirmed
+      );
+
+      setAgentExecution(
+        null
+      );
+    } catch (
+      nextError
+    ) {
+      setAgentError(
+        getErrorMessage(
+          nextError
+        )
+      );
+    } finally {
+      setAgentBusy(
+        null
+      );
+    }
+  }
+
+  async function verifyInlineBoundary() {
+    if (
+      !agentAuthorization
+    ) {
+      setAgentError(
+        "Authorize the exact request first."
+      );
+
+      return;
+    }
+
+    setAgentBusy(
+      "verify"
+    );
+
+    setAgentError(
+      null
+    );
+
+    setAgentExecution(
+      null
+    );
+
+    try {
+      const result =
+        await apiRequest<
+          ExecuteResponse
+        >(
+          "/api/execute",
+          {
+            method:
+              "POST",
+
+            body: {
+              authorizationId:
+                agentAuthorization
+                  .authorizationId,
+
+              scenario:
+                agentScenario,
+
+              confirmRealPayment:
+                false,
+            },
+          }
+        );
+
+      setAgentExecution(
+        result
+      );
+    } catch (
+      nextError
+    ) {
+      setAgentError(
+        getErrorMessage(
+          nextError
+        )
+      );
+    } finally {
+      setAgentBusy(
+        null
+      );
+    }
+  }
+
+  const canonicalExplanation =
+    inspection
+      ?.interpretation
+      .plainEnglish ??
+    null;
+
+  const explanation =
+    translatedExplanation ??
+    canonicalExplanation;
+
+  const tx =
+    inspection
+      ?.facts
+      .transaction;
+
+  const txHash =
+    inspection
+      ?.facts
+      .subject
+      .transactionHash;
+
+  const interpretation =
+    inspection
+      ?.interpretation;
+
+  const protocol =
+    interpretation
+      ?.protocol;
+
+  const interaction =
+    interpretation
+      ?.interaction;
+
+  const identifiedSwap =
+    interpretation
+      ?.swap
+      .status ===
+    "identified"
+      ? interpretation.swap
+      : null;
+
+  const incomingEffect =
+    interpretation
+      ?.observedWalletEffect
+      .tokenEffects
+      .find(
+        (
+          effect
+        ) =>
+          effect.direction ===
+          "in"
+      );
+
+  const outgoingEffect =
+    interpretation
+      ?.observedWalletEffect
+      .tokenEffects
+      .find(
+        (
+          effect
+        ) =>
+          effect.direction ===
+          "out"
+      );
+
+  const directTokenTransfer =
+    !identifiedSwap
+      ? inspection
+          ?.facts
+          .tokenTransfers
+          .find(
+            (
+              transfer
+            ) =>
+              transfer.from.toLowerCase() ===
+              tx?.from.toLowerCase()
+          ) ??
+        null
+      : null;
+
+  const directNativeTransfer =
+    !identifiedSwap &&
+    inspection
+      ?.facts
+      .action
+      .type ===
+      "native_transfer" &&
+    tx?.to
+      ? tx
+      : null;
+
+  const sentDisplay =
+    identifiedSwap
+      ?.sent
+      ? `${identifiedSwap.sent.amountFormatted} ${
+          identifiedSwap.sent.symbol ??
+          "ASSET"
+        }`
+      : outgoingEffect
+        ? `${outgoingEffect.amountFormatted} ${
+            outgoingEffect.symbol ??
+            "TOKEN"
+          }`
+        : interpretation
+            ?.observedWalletEffect
+            .topLevelNativeSent
+          ? `${interpretation.observedWalletEffect.topLevelNativeSent.amountFormatted} ${interpretation.observedWalletEffect.topLevelNativeSent.symbol}`
+          : uiLabel(
+              "noOutgoingAsset"
+            );
+
+  const receivedDisplay =
+    identifiedSwap
+      ?.received
+      ? `${identifiedSwap.received.amountFormatted} ${
+          identifiedSwap.received.symbol ??
+          "ASSET"
+        }`
+      : incomingEffect
+        ? `${incomingEffect.amountFormatted} ${
+            incomingEffect.symbol ??
+            "TOKEN"
+          }`
+        : uiLabel(
+            "noIncomingAsset"
+          );
+
+  const proposedInlinePlan =
+    agentPlan?.status ===
+    "PROPOSED"
+      ? agentPlan
+      : null;
+
+  const inlineWhatChanged =
+    agentExecution
+      ?.whatChanged;
+
+  /*
+   * -------------------------------------------------------
+   * LANDING STATE
+   * -------------------------------------------------------
+   */
+
+  if (
+    !inspection
+  ) {
+    return (
+      <Shell>
+        <main className="lens-entry">
+          <section className="lens-entry-inner">
+            <div className="eyebrow">
+              BOUND LENS · MULTI-CHAIN EVM
+            </div>
+
+            <h1>
+              Know what a
+              <br />
+              transaction
+              <br />
+              actually did.
+            </h1>
+
+            <p>
+              Real blockchain facts first.
+              BOUND interprets only what the
+              evidence supports. Anything
+              unknown stays unknown.
+            </p>
+
+            <form
+              className="lens-command"
+              onSubmit={
+                (
+                  event
+                ) => {
+                  event
+                    .preventDefault();
+
+                  void inspectTransaction();
+                }
+              }
+            >
+              <span className="lens-command-icon">
+                ↳
+              </span>
+
+              <input
+                aria-label="Transaction"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="Paste transaction hash or explorer URL"
+                value={
+                  transactionInput
+                }
+                onChange={
+                  (
+                    event
+                  ) => {
+                    setTransactionInput(
+                      event
+                        .target
+                        .value
+                    );
+
+                    setInspectionError(
+                      null
+                    );
+                  }
+                }
+              />
+
+              <button
+                type="submit"
+                disabled={
+                  inspecting ||
+                  !transactionInput
+                    .trim()
+                }
+              >
+                {inspecting
+                  ? "Reading chain…"
+                  : "Explain →"}
+              </button>
+            </form>
+
+            <div className="lens-entry-meta">
+              <button
+                type="button"
+                onClick={
+                  () =>
+                    setTransactionInput(
+                      SAMPLE_TRANSACTION_HASH
+                    )
+                }
+              >
+                Try real transaction
+              </button>
+
+              <span>
+                No wallet required
+              </span>
+
+              <span>
+                12 supported EVM networks
+              </span>
+            </div>
+
+            {inspectionError && (
+              <div className="lens-error">
+                {inspectionError}
+              </div>
+            )}
+
+            <div className="lens-entry-proof">
+              <div>
+                <strong>
+                  01
+                </strong>
+
+                <span>
+                  READ
+                </span>
+
+                <p>
+                  Fetch real chain facts.
+                </p>
+              </div>
+
+              <div>
+                <strong>
+                  02
+                </strong>
+
+                <span>
+                  EXPLAIN
+                </span>
+
+                <p>
+                  Translate facts without guessing.
+                </p>
+              </div>
+
+              <div>
+                <strong>
+                  03
+                </strong>
+
+                <span>
+                  BIND
+                </span>
+
+                <p>
+                  Authorize deeper Agent actions exactly.
+                </p>
+              </div>
+            </div>
+          </section>
+        </main>
+      </Shell>
+    );
+  }
+
+  /*
+   * -------------------------------------------------------
+   * RESULT / PRODUCT STATE
+   * -------------------------------------------------------
+   */
+
   return (
     <Shell>
-      <main className="landing">
-        <section className="hero">
-          <div className="eyebrow">
-            Context integrity for autonomous payments
+      <main className="lens-product">
+        <section className="lens-toolbar">
+          <div>
+            <span className="eyebrow">
+              BOUND LENS
+            </span>
+
+            <strong>
+              {uiLabel("transactionIntelligence")}
+            </strong>
           </div>
 
-          <h1>
-            Secure the moment
-            <br />
-            between AI intent
-            <br />
-            and onchain execution.
-          </h1>
+          <form
+            className="lens-toolbar-search"
+            onSubmit={
+              (
+                event
+              ) => {
+                event
+                  .preventDefault();
 
-          <p className="hero-copy">
-            BOUND binds what a user
-            authorized, what a trusted
-            tool signed, and what an AI
-            agent actually proposes before
-            a signer can act.
-          </p>
+                void inspectTransaction();
+              }
+            }
+          >
+            <input
+              value={
+                transactionInput
+              }
+              onChange={
+                (
+                  event
+                ) =>
+                  setTransactionInput(
+                    event
+                      .target
+                      .value
+                  )
+              }
+            />
 
-          <div className="hero-actions">
-            <a
-              className="button primary"
-              href="/app"
+            <button
+              type="submit"
+              disabled={
+                inspecting
+              }
             >
-              Open workspace
-            </a>
+              {inspecting
+                ? uiLabel(
+                    "reading"
+                  )
+                : uiLabel(
+                    "analyze"
+                  )}
+            </button>
+          </form>
+        </section>
 
-            <a
-              className="button ghost"
-              href="/docs"
-            >
-              Read trust model
-            </a>
+        <section className="lens-product-heading">
+          <div>
+            <div className="lens-kicker">
+              {uiLabel("transactionDecoded")}
+            </div>
+
+            <h1>
+              {
+                translatedHeadline ??
+                inspection
+                  .interpretation
+                  .headline
+              }
+            </h1>
+
+            <span className="lens-hash">
+              {txHash}
+            </span>
+          </div>
+
+          <div className="lens-heading-pills">
+            <span className="positive">
+              ● {
+                uiLabel(
+                  tx?.status ===
+                  "success"
+                    ? "success"
+                    : "reverted"
+                ).toUpperCase()
+              }
+            </span>
+
+            <span>
+              {
+                inspection
+                  .interpretation
+                  .network
+                  .name
+              }
+            </span>
+
+            <span>
+              {uiLabel("block")} {
+                tx
+                  ?.blockNumber
+              }
+            </span>
           </div>
         </section>
 
-        <section className="principle-grid">
-          <article>
-            <span className="index">
-              01
+        <section className="lens-money-flow">
+          <div className="lens-money-node">
+            <span>
+              {uiLabel("sender")}
             </span>
 
-            <h2>
-              User mandate
-            </h2>
+            <strong>
+              {
+                shortAddress(
+                  tx?.from
+                )
+              }
+            </strong>
 
-            <p>
-              A wallet signs a
-              time-bounded EIP-712 spending
-              authorization with an explicit
-              resource, chain, asset,
-              maximum amount, and trusted
-              evidence source.
-            </p>
-          </article>
+            <small>
+              {uiLabel("originWallet")}
+            </small>
+          </div>
 
-          <article>
-            <span className="index">
-              02
+          <div className="lens-money-route">
+            <div className="lens-route-label">
+              {sentDisplay}
+            </div>
+
+            <div className="lens-route-line">
+              <span />
+              <i>
+                →
+              </i>
+            </div>
+
+            <small>
+              {
+                interaction
+                  ?.functionName ??
+                inspection
+                  .facts
+                  .action
+                  .type
+                  .replaceAll(
+                    "_",
+                    " "
+                  )
+              }
+            </small>
+          </div>
+
+          <div className="lens-money-node contract">
+            <span>
+              {
+                protocol
+                  ?.status ===
+                "identified"
+                  ? uiLabel("protocol")
+                  : directTokenTransfer
+                    ? uiLabel("tokenContract")
+                    : directNativeTransfer
+                      ? uiLabel("nativeAsset")
+                      : uiLabel("destination")
+              }
             </span>
 
-            <h2>
-              Signed evidence
-            </h2>
+            <strong>
+              {
+                protocol
+                  ?.name ??
+                directTokenTransfer
+                  ?.symbol ??
+                (directNativeTransfer
+                  ? directNativeTransfer
+                      .nativeSymbol
+                  : shortAddress(
+                      tx?.to
+                    ))
+              }
+            </strong>
 
-            <p>
-              The merchant or tool provides
-              independently signed payment
-              evidence. BOUND retains the
-              original evidence outside
-              model control.
-            </p>
-          </article>
+            <small>
+              {
+                protocol
+                  ?.component ??
+                (directNativeTransfer
+                  ? uiLabel("nativeTransfer")
+                  : shortAddress(
+                      tx?.to
+                    ))
+              }
+            </small>
+          </div>
 
-          <article>
-            <span className="index">
-              03
+          <div className="lens-money-route secondary">
+            <div className="lens-route-label">
+              {
+                directTokenTransfer
+                  ? uiLabel("transferEvent")
+                  : directNativeTransfer
+                    ? uiLabel("transfer")
+                    : uiLabel("observedResult")
+              }
+            </div>
+
+            <div className="lens-route-line">
+              <span />
+              <i>
+                →
+              </i>
+            </div>
+          </div>
+
+          <div className="lens-money-node recipient">
+            <span>
+              {
+                identifiedSwap
+                  ? uiLabel("received")
+                  : directTokenTransfer
+                    ? uiLabel("recipient")
+                    : directNativeTransfer
+                      ? uiLabel("recipient")
+                      : incomingEffect
+                        ? uiLabel("walletReceived")
+                        : uiLabel("outcome")
+              }
             </span>
 
-            <h2>
-              Exact transaction
-            </h2>
+            <strong>
+              {
+                directTokenTransfer
+                  ? shortAddress(
+                      directTokenTransfer.to
+                    )
+                  : directNativeTransfer
+                    ? shortAddress(
+                        directNativeTransfer.to
+                      )
+                    : receivedDisplay
+              }
+            </strong>
 
-            <p>
-              Before signing, BOUND checks
-              the actual recipient, amount,
-              chain, and calldata against
-              both authorization and signed
-              evidence.
-            </p>
-          </article>
+            <small>
+              {
+                identifiedSwap
+                  ? swapKindLabel(
+                      identifiedSwap
+                        .kind
+                    )
+                  : directTokenTransfer
+                    ? `${
+                        directTokenTransfer.amountFormatted ??
+                        directTokenTransfer.amountRaw
+                      } ${
+                        directTokenTransfer.symbol ??
+                        "TOKEN"
+                      } ${uiLabel(
+                        "receivedLower"
+                      )}`
+                    : directNativeTransfer
+                      ? `${directNativeTransfer.nativeValueFormatted} ${directNativeTransfer.nativeSymbol} ${uiLabel(
+                          "receivedLower"
+                        )}`
+                      : `${inspection.facts.tokenTransfers.length} ${uiLabel(
+                          "tokenMovementsLower"
+                        )}`
+              }
+            </small>
+          </div>
         </section>
+
+        <section className="lens-main-grid">
+          <article className="lens-understand-panel">
+            <div className="lens-panel-title">
+              <span>
+                {uiLabel("whatHappened")}
+              </span>
+
+              <small>
+                {uiLabel("evidenceGrounded")}
+              </small>
+            </div>
+
+            <div className="lens-language-row">
+              <label>
+                <span>
+                  {uiLabel("language")}
+                </span>
+
+                <select
+                  value={
+                    lensLanguage
+                  }
+                  onChange={
+                    (
+                      event
+                    ) => {
+                      const nextLanguage =
+                        event
+                          .target
+                          .value;
+
+                      setLensLanguage(
+                        nextLanguage
+                      );
+
+                      setTranslationError(
+                        null
+                      );
+
+                      if (
+                        nextLanguage ===
+                        "custom"
+                      ) {
+                        setTranslatedExplanation(
+                          null
+                        );
+
+                        setTranslatedUiLabels(
+                          {}
+                        );
+
+                        setTranslatedHeadline(
+                          null
+                        );
+
+                        return;
+                      }
+
+                      if (
+                        inspection
+                      ) {
+                        void translateInspectionExplanation(
+                          inspection,
+                          nextLanguage,
+                          customLensLanguage
+                        );
+
+                        void translateLensUiLabels(
+                          inspection,
+                          nextLanguage,
+                          customLensLanguage
+                        );
+                      }
+                    }
+                  }
+                >
+                  <option value="auto">
+                    Auto
+                  </option>
+
+                  <option value="English">
+                    English
+                  </option>
+
+                  <option value="Bahasa Indonesia">
+                    Bahasa Indonesia
+                  </option>
+
+                  <option value="Japanese">
+                    日本語
+                  </option>
+
+                  <option value="Korean">
+                    한국어
+                  </option>
+
+                  <option value="Arabic">
+                    العربية
+                  </option>
+
+                  <option value="Spanish">
+                    Español
+                  </option>
+
+                  <option value="French">
+                    Français
+                  </option>
+
+                  <option value="German">
+                    Deutsch
+                  </option>
+
+                  <option value="Portuguese">
+                    Português
+                  </option>
+
+                  <option value="Chinese">
+                    中文
+                  </option>
+
+                  <option value="Hindi">
+                    हिन्दी
+                  </option>
+
+                  <option value="custom">
+                    {uiLabel("otherLanguage")}
+                  </option>
+                </select>
+              </label>
+
+              {
+                lensLanguage ===
+                "custom" &&
+                (
+                  <div className="lens-custom-language">
+                    <input
+                      aria-label="Custom language"
+                      placeholder={uiLabel("typeAnyLanguage")}
+                      value={
+                        customLensLanguage
+                      }
+                      onChange={
+                        (
+                          event
+                        ) =>
+                          setCustomLensLanguage(
+                            event
+                              .target
+                              .value
+                          )
+                      }
+                      onKeyDown={
+                        (
+                          event
+                        ) => {
+                          if (
+                            event.key ===
+                            "Enter"
+                          ) {
+                            event
+                              .preventDefault();
+
+                            if (
+                              inspection
+                            ) {
+                              void translateInspectionExplanation(
+                                inspection,
+                                "custom",
+                                customLensLanguage
+                              );
+
+                              void translateLensUiLabels(
+                                inspection,
+                                "custom",
+                                customLensLanguage
+                              );
+                            }
+                          }
+                        }
+                      }
+                    />
+
+                    <button
+                      type="button"
+                      disabled={
+                        translationBusy ||
+                        !customLensLanguage
+                          .trim()
+                      }
+                      onClick={
+                        () => {
+                          if (
+                            inspection
+                          ) {
+                            void translateInspectionExplanation(
+                              inspection,
+                              "custom",
+                              customLensLanguage
+                            );
+
+                            void translateLensUiLabels(
+                              inspection,
+                              "custom",
+                              customLensLanguage
+                            );
+                          }
+                        }
+                      }
+                    >
+                      {uiLabel("apply")}
+                    </button>
+                  </div>
+                )
+              }
+
+              {
+                (
+                  translationBusy ||
+                  uiTranslationBusy
+                ) &&
+                (
+                  <small>
+                    {uiLabel("translating")}
+                  </small>
+                )
+              }
+
+              {
+                translationError &&
+                (
+                  <small className="lens-translation-error">
+                    {
+                      translationError
+                    }
+                  </small>
+                )
+              }
+            </div>
+
+            <p className="lens-explanation-big">
+              {explanation}
+            </p>
+
+            {
+              inspection
+                .facts
+                .action
+                .type ===
+              "contract_call" &&
+              protocol
+                ?.status !==
+              "identified" &&
+              !interaction
+                ?.functionName &&
+              (
+                <div className="lens-unknown-panel">
+                  <span>
+                    {uiLabel("unknownBehavior")}
+                  </span>
+
+                  <strong>
+                    {uiLabel("boundWillNotGuess")}
+                  </strong>
+
+                  <p>
+                    {uiLabel("insufficientEvidence")}
+                  </p>
+                </div>
+              )
+            }
+
+            <div className="lens-evidence-row">
+              <span>
+                ✓ {uiLabel("rpcFacts")}
+              </span>
+
+              <span>
+                ✓ {uiLabel("deterministicInterpretation")}
+              </span>
+
+              <span>
+                ✓ {uiLabel("noSecurityVerdict")}
+              </span>
+            </div>
+          </article>
+
+          <aside className="lens-agent-console">
+            <div className="lens-agent-orb">
+              B
+            </div>
+
+            <div className="lens-panel-title">
+              <span>
+                BOUND AGENT
+              </span>
+
+              <small>
+                Optional deeper analysis
+              </small>
+            </div>
+
+            {!proposedInlinePlan && (
+              <>
+                <h2>
+                  What do you want
+                  to know?
+                </h2>
+
+                <p>
+                  Ask BOUND Agent only when
+                  you want deeper analysis
+                  beyond the free Lens result.
+                </p>
+
+                <textarea
+                  className="lens-agent-prompt"
+                  rows={4}
+                  value={
+                    agentTask
+                  }
+                  onChange={
+                    (
+                      event
+                    ) => {
+                      setAgentTask(
+                        event
+                          .target
+                          .value
+                      );
+
+                      setAgentError(
+                        null
+                      );
+                    }
+                  }
+                />
+
+                <button
+                  className="lens-agent-button"
+                  type="button"
+                  disabled={
+                    agentBusy !==
+                    null
+                  }
+                  onClick={
+                    () => {
+                      void runInlineAgentPlan();
+                    }
+                  }
+                >
+                  <span>
+                    {agentBusy ===
+                    "plan"
+                      ? "Agent is planning…"
+                      : "Plan exact request"}
+                  </span>
+
+                  <span>
+                    →
+                  </span>
+                </button>
+              </>
+            )}
+
+            {agentPlan?.status ===
+              "NO_PROPOSAL" && (
+              <div className="lens-agent-message danger">
+                <strong>
+                  Agent needs clarification
+                </strong>
+
+                <p>
+                  {agentPlan.message}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={
+                    () => {
+                      setAgentPlan(
+                        null
+                      );
+                    }
+                  }
+                >
+                  Edit request
+                </button>
+              </div>
+            )}
+
+            {proposedInlinePlan &&
+              !agentDraft && (
+              <>
+                <h2>
+                  Exact request prepared.
+                </h2>
+
+                <p>
+                  The Agent proposed one
+                  transaction-analysis request.
+                  No payment authorization
+                  exists yet.
+                </p>
+
+                <div className="lens-agent-review">
+                  <div>
+                    <span>
+                      TRANSACTION
+                    </span>
+
+                    <code>
+                      {
+                        shortAddress(
+                          proposedInlinePlan
+                            .request
+                            .arguments
+                            .transactionHash
+                        )
+                      }
+                    </code>
+                  </div>
+
+                  <div>
+                    <span>
+                      TOOL
+                    </span>
+
+                    <strong>
+                      Transaction Analysis
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>
+                      REQUEST HASH
+                    </span>
+
+                    <code>
+                      {
+                        shortAddress(
+                          proposedInlinePlan
+                            .requestHash
+                        )
+                      }
+                    </code>
+                  </div>
+                </div>
+
+                <button
+                  className="lens-agent-button"
+                  type="button"
+                  disabled={
+                    agentBusy !==
+                    null
+                  }
+                  onClick={
+                    () => {
+                      void prepareInlineAuthorization();
+                    }
+                  }
+                >
+                  <span>
+                    {agentBusy ===
+                    "prepare"
+                      ? "Opening wallet…"
+                      : "Connect wallet & review"}
+                  </span>
+
+                  <span>
+                    →
+                  </span>
+                </button>
+              </>
+            )}
+
+            {agentDraft &&
+              !agentAuthorization && (
+              <>
+                <h2>
+                  Review what your wallet
+                  will authorize.
+                </h2>
+
+                <div className="lens-agent-review authorization">
+                  <div>
+                    <span>
+                      TRANSACTION
+                    </span>
+
+                    <code>
+                      {
+                        shortAddress(
+                          agentDraft
+                            .request
+                            .arguments
+                            .transactionHash
+                        )
+                      }
+                    </code>
+                  </div>
+
+                  <div>
+                    <span>
+                      TOOL
+                    </span>
+
+                    <strong>
+                      Transaction Analysis
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>
+                      NETWORK
+                    </span>
+
+                    <strong>
+                      BSC Testnet
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>
+                      MAX PAYMENT
+                    </span>
+
+                    <strong>
+                      {
+                        agentDraft
+                          .payment
+                          .amount
+                      } {
+                        agentDraft
+                          .payment
+                          .token
+                      }
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>
+                      MERCHANT
+                    </span>
+
+                    <code>
+                      {
+                        shortAddress(
+                          agentDraft
+                            .payment
+                            .recipient
+                        )
+                      }
+                    </code>
+                  </div>
+
+                  <div>
+                    <span>
+                      REQUEST HASH
+                    </span>
+
+                    <code>
+                      {
+                        shortAddress(
+                          agentDraft
+                            .requestHash
+                        )
+                      }
+                    </code>
+                  </div>
+                </div>
+
+                <button
+                  className="lens-agent-button"
+                  type="button"
+                  disabled={
+                    agentBusy !==
+                    null
+                  }
+                  onClick={
+                    () => {
+                      void signInlineAuthorization();
+                    }
+                  }
+                >
+                  <span>
+                    {agentBusy ===
+                    "sign"
+                      ? "Waiting for wallet…"
+                      : "Authorize exact request"}
+                  </span>
+
+                  <span>
+                    →
+                  </span>
+                </button>
+
+                <small className="lens-auth-note">
+                  EIP-712 signature only.
+                  This is not an onchain
+                  transaction.
+                </small>
+              </>
+            )}
+
+            {agentAuthorization && (
+              <>
+                <div className="lens-agent-authorized">
+                  <span>
+                    ✓ AUTHORIZED
+                  </span>
+
+                  <strong>
+                    Exact request bound
+                  </strong>
+
+                  <small>
+                    {
+                      shortAddress(
+                        agentAuthorization
+                          .signer
+                      )
+                    }
+                  </small>
+                </div>
+
+                <h2>
+                  Re-check it at the
+                  payment boundary.
+                </h2>
+
+                <p>
+                  Keep the exact request,
+                  or simulate an Agent changing
+                  only the transaction after
+                  authorization.
+                </p>
+
+                <div className="lens-scenario-toggle">
+                  <button
+                    className={
+                      agentScenario ===
+                      "normal"
+                        ? "active"
+                        : ""
+                    }
+                    type="button"
+                    disabled={
+                      agentBusy !==
+                      null
+                    }
+                    onClick={
+                      () => {
+                        setAgentScenario(
+                          "normal"
+                        );
+
+                        setAgentExecution(
+                          null
+                        );
+                      }
+                    }
+                  >
+                    Exact request
+                  </button>
+
+                  <button
+                    className={
+                      agentScenario ===
+                      "tampered"
+                        ? "active danger"
+                        : "danger"
+                    }
+                    type="button"
+                    disabled={
+                      agentBusy !==
+                      null
+                    }
+                    onClick={
+                      () => {
+                        setAgentScenario(
+                          "tampered"
+                        );
+
+                        setAgentExecution(
+                          null
+                        );
+                      }
+                    }
+                  >
+                    Change transaction
+                  </button>
+                </div>
+
+                {agentScenario ===
+                  "tampered" && (
+                  <div className="lens-mutation-preview">
+                    <span>
+                      AUTHORIZED
+                    </span>
+
+                    <code>
+                      {
+                        shortAddress(
+                          agentAuthorization
+                            .request
+                            .arguments
+                            .transactionHash
+                        )
+                      }
+                    </code>
+
+                    <b>
+                      →
+                    </b>
+
+                    <span>
+                      ACTUAL
+                    </span>
+
+                    <code>
+                      {
+                        shortAddress(
+                          CONTROLLED_TAMPER_TRANSACTION_HASH
+                        )
+                      }
+                    </code>
+                  </div>
+                )}
+
+                <button
+                  className="lens-agent-button"
+                  type="button"
+                  disabled={
+                    agentBusy !==
+                    null
+                  }
+                  onClick={
+                    () => {
+                      void verifyInlineBoundary();
+                    }
+                  }
+                >
+                  <span>
+                    {agentBusy ===
+                    "verify"
+                      ? "BOUND is verifying…"
+                      : agentScenario ===
+                        "tampered"
+                        ? "Run changed-request check"
+                        : "Verify exact request"}
+                  </span>
+
+                  <span>
+                    →
+                  </span>
+                </button>
+              </>
+            )}
+
+            {agentExecution && (
+              <div
+                className={
+                  agentExecution.status ===
+                  "STOPPED"
+                    ? "lens-bound-result blocked"
+                    : "lens-bound-result allowed"
+                }
+              >
+                <div className="lens-bound-decision">
+                  <span>
+                    BOUND DECISION
+                  </span>
+
+                  <strong>
+                    {
+                      agentExecution
+                        .verification
+                        ?.decision ??
+                      agentExecution.status
+                    }
+                  </strong>
+                </div>
+
+                {inlineWhatChanged && (
+                  <>
+                    <h3>
+                      {
+                        inlineWhatChanged
+                          .outcome
+                          .title
+                      }
+                    </h3>
+
+                    <p>
+                      {
+                        inlineWhatChanged
+                          .outcome
+                          .message
+                      }
+                    </p>
+
+                    <div className="lens-comparison">
+                      <div>
+                        <span>
+                          Transaction
+                        </span>
+
+                        <strong>
+                          {
+                            inlineWhatChanged
+                              .comparison
+                              .transaction
+                          }
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>
+                          Tool
+                        </span>
+
+                        <strong>
+                          {
+                            inlineWhatChanged
+                              .comparison
+                              .analysisTool
+                          }
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>
+                          Network
+                        </span>
+
+                        <strong>
+                          {
+                            inlineWhatChanged
+                              .comparison
+                              .network
+                          }
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>
+                          Price
+                        </span>
+
+                        <strong>
+                          {
+                            inlineWhatChanged
+                              .comparison
+                              .price
+                          }
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>
+                          Token
+                        </span>
+
+                        <strong>
+                          {
+                            inlineWhatChanged
+                              .comparison
+                              .token
+                          }
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>
+                          Merchant
+                        </span>
+
+                        <strong>
+                          {
+                            inlineWhatChanged
+                              .comparison
+                              .merchant
+                          }
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="lens-payment-proof">
+                      <div>
+                        <span>
+                          PAYER INVOKED
+                        </span>
+
+                        <strong>
+                          {
+                            inlineWhatChanged
+                              .outcome
+                              .payerInvoked
+                              ? "YES"
+                              : "NO"
+                          }
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>
+                          PAYMENT BROADCAST
+                        </span>
+
+                        <strong>
+                          {
+                            inlineWhatChanged
+                              .outcome
+                              .broadcast
+                              ? "YES"
+                              : "NO"
+                          }
+                        </strong>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {agentError && (
+              <div
+                className="lens-agent-error"
+                role="alert"
+              >
+                {agentError}
+              </div>
+            )}
+          </aside>
+        </section>
+
+        <section className="lens-detail-strip">
+          <div>
+            <span>
+              {uiLabel("nativeValue")}
+            </span>
+
+            <strong>
+              {tx?.nativeValueFormatted} {
+                tx?.nativeSymbol
+              }
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              {uiLabel("networkFee")}
+            </span>
+
+            <strong>
+              {tx?.transactionFeeFormatted} {
+                tx?.nativeSymbol
+              }
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              {uiLabel("function")}
+            </span>
+
+            <code>
+              {
+                interaction
+                  ?.functionName ??
+                tx?.selector ??
+                "NONE"
+              }
+            </code>
+          </div>
+
+          <div>
+            <span>
+              {uiLabel("tokenMovements")}
+            </span>
+
+            <strong>
+              {
+                inspection
+                  .facts
+                  .tokenTransfers
+                  .length
+              }
+            </strong>
+          </div>
+
+          <a
+            href={
+              inspection
+                .facts
+                .subject
+                .explorerUrl
+            }
+            target="_blank"
+            rel="noreferrer"
+          >
+            {uiLabel("rawTransaction")} ↗
+          </a>
+        </section>
+
       </main>
     </Shell>
   );
 }
+
+/*
+ * =======================================================
+ * PROOF
+ * =======================================================
+ */
 
 function ProofPage() {
   return (
     <Shell>
       <main className="content-page">
         <div className="eyebrow">
-          Testnet proof
+          Verified testnet evidence
         </div>
 
         <h1>
-          Public settlement evidence.
+          One request paid.
+          <br />
+          One mutation stopped.
         </h1>
 
         <p className="lead">
-          BOUND has executed a guarded
-          native tBNB transfer on BNB Smart
-          Chain Testnet after authorization,
-          evidence, and transaction fields
-          matched.
+          The exact-request flow completed
+          a real BNB MPP payment on BNB
+          Smart Chain Testnet. In the
+          controlled mutation flow, the
+          payment terms remained unchanged
+          while the paid tool request
+          changed, and BOUND stopped before
+          payment.
         </p>
 
         <section className="proof-card">
-          <div>
-            <span className="field-label">
-              Network
-            </span>
-
+          <Field label="Guarded payment">
             <strong>
-              BNB Smart Chain Testnet
+              0.001 TEST_USDT
             </strong>
-          </div>
+          </Field>
 
-          <div>
-            <span className="field-label">
-              Chain
-            </span>
-
+          <Field label="Network">
             <strong>
-              97
+              BNB Smart Chain Testnet · 97
             </strong>
-          </div>
+          </Field>
 
-          <div>
-            <span className="field-label">
-              Transaction
-            </span>
+          <Field label="Evidence">
+            <strong>
+              Historical successful BNB MPP payment
+            </strong>
+          </Field>
 
+          <Field label="Confirmed payment transaction">
             <code>
-              {PROOF_TRANSACTION}
+              {GUARDED_PAYMENT_TX}
             </code>
-          </div>
+          </Field>
 
           <a
             className="button primary"
-            href={`${BSC_TESTNET_EXPLORER}/tx/${PROOF_TRANSACTION}`}
+            href={`${BSC_TESTNET_EXPLORER}/tx/${GUARDED_PAYMENT_TX}`}
             target="_blank"
             rel="noreferrer"
           >
             Inspect on BscScan
           </a>
         </section>
+
+        <section className="proof-card">
+          <Field label="Controlled mutation">
+            <strong>
+              Exact tool argument changed
+            </strong>
+          </Field>
+
+          <Field label="Authorized transaction">
+            <code>
+              {SAMPLE_TRANSACTION_HASH}
+            </code>
+          </Field>
+
+          <Field label="Controlled mutation">
+            <code>
+              {CONTROLLED_TAMPER_TRANSACTION_HASH}
+            </code>
+          </Field>
+
+          <Field label="Payment terms">
+            <strong>
+              Same chain · token ·
+              recipient · amount
+            </strong>
+          </Field>
+
+          <Field label="Result">
+            <strong>
+              No payment broadcast
+            </strong>
+          </Field>
+        </section>
       </main>
     </Shell>
   );
 }
+
+/*
+ * =======================================================
+ * DOCS
+ * =======================================================
+ */
 
 function DocsPage() {
   return (
     <Shell>
       <main className="content-page docs-page">
         <div className="eyebrow">
-          Trust model
+          Architecture & trust boundaries
         </div>
 
         <h1>
-          What BOUND verifies.
+          What BOUND
+          <br />
+          actually verifies.
         </h1>
+
+        <p className="lead">
+          The prototype separates AI
+          planning, user authorization,
+          deterministic verification, and
+          payment execution. Gemini helps
+          interpret the task, but it is
+          not the payment authority.
+        </p>
 
         <section className="docs-grid">
           <article>
             <h2>
-              Gemini reasons.
+              Gemini plans.
             </h2>
 
             <p>
-              Gemini interprets the natural
-              language purchasing request,
-              invokes the quote tool, checks
-              the user's stated conditions,
-              and proposes an unsigned
-              transaction.
+              Gemini converts a
+              natural-language
+              transaction-check task into
+              exact from, to, valueWei,
+              and calldata fields. Tool
+              identity, method, network,
+              and chain are pinned by the
+              host.
             </p>
           </article>
 
           <article>
             <h2>
-              BOUND decides.
+              The wallet authorizes.
             </h2>
 
             <p>
-              A deterministic verifier
-              compares transaction-critical
-              fields against the signed user
-              mandate and signed upstream
-              evidence.
+              The browser wallet signs an
+              EIP-712 authorization that
+              binds the exact request hash
+              to BSC Testnet and the
+              quoted MPP payment terms.
             </p>
           </article>
 
           <article>
             <h2>
-              The signer is downstream.
+              BOUND verifies.
             </h2>
 
             <p>
-              The AI does not receive a
-              private key. A signing boundary
-              can act only after BOUND
-              returns an ALLOW decision.
+              Immediately before payment,
+              BOUND recomputes the actual
+              tool request and verifies it
+              against the signed
+              authorization and current
+              payment challenge.
+            </p>
+          </article>
+
+          <article>
+            <h2>
+              The payer is downstream.
+            </h2>
+
+            <p>
+              The protected payment wallet
+              stays server-side and is not
+              exposed to Gemini or the
+              browser. Payment execution
+              sits after the deterministic
+              gate.
+            </p>
+          </article>
+
+          <article>
+            <h2>
+              MPP settles.
+            </h2>
+
+            <p>
+              The paid tool uses a real
+              HTTP 402 challenge,
+              TEST_USDT on BSC Testnet,
+              hash credentials with payer
+              provenance, and an MPP
+              Payment-Receipt.
             </p>
           </article>
 
@@ -1071,12 +4248,13 @@ function DocsPage() {
             </h2>
 
             <p>
-              BOUND verifies provenance and
-              consistency. It does not prove
-              that a trusted source itself is
-              honest, detect every scam, or
-              prevent every form of prompt
-              injection.
+              This build demonstrates one
+              paid transaction-check tool
+              on BSC Testnet. It does not
+              claim to stop every form of
+              prompt injection or make a
+              universal transaction-safety
+              judgment.
             </p>
           </article>
         </section>
@@ -1085,13 +4263,43 @@ function DocsPage() {
   );
 }
 
+/*
+ * =======================================================
+ * WORKSPACE
+ * =======================================================
+ */
+
 function WorkspacePage() {
+  const [
+    config,
+    setConfig,
+  ] =
+    useState<
+      PublicConfig |
+      null
+    >(
+      null
+    );
+
   const [
     task,
     setTask,
   ] =
     useState(
-      "Buy the BNB market report if it costs no more than 0.005 tBNB."
+      () => {
+        const transactionHash =
+          new URLSearchParams(
+            window.location.search
+          )
+            .get(
+              "tx"
+            )
+            ?.trim();
+
+        return transactionHash
+          ? `Analyze this BSC Testnet transaction: ${transactionHash}`
+          : DEFAULT_TASK;
+      }
     );
 
   const [
@@ -1106,11 +4314,11 @@ function WorkspacePage() {
     );
 
   const [
-    intent,
-    setIntent,
+    plan,
+    setPlan,
   ] =
     useState<
-      IntentResponse |
+      PlanResponse |
       null
     >(
       null
@@ -1139,55 +4347,22 @@ function WorkspacePage() {
     );
 
   const [
-    agentRun,
-    setAgentRun,
-  ] =
-    useState<
-      AgentRunResponse |
-      null
-    >(
-      null
-    );
-
-  const [
-    candidate,
-    setCandidate,
-  ] =
-    useState<
-      RawNativeTransaction |
-      null
-    >(
-      null
-    );
-
-  const [
-    verification,
-    setVerification,
-  ] =
-    useState<
-      VerifyResponse |
-      null
-    >(
-      null
-    );
-
-  const [
-    replay,
-    setReplay,
-  ] =
-    useState<
-      ReplayResponse |
-      null
-    >(
-      null
-    );
-
-  const [
     scenario,
     setScenario,
   ] =
     useState<Scenario>(
       "normal"
+    );
+
+  const [
+    execution,
+    setExecution,
+  ] =
+    useState<
+      ExecuteResponse |
+      null
+    >(
+      null
     );
 
   const [
@@ -1212,87 +4387,260 @@ function WorkspacePage() {
       null
     );
 
-  const agentSession =
-    agentRun &&
-      agentRun.status ===
-      "SESSION_CREATED"
-      ? agentRun
+  /*
+   * -------------------------------------------------------
+   * LOAD PUBLIC PRODUCT CONFIG
+   * -------------------------------------------------------
+   */
+
+  useEffect(
+    () => {
+      let mounted =
+        true;
+
+      void apiRequest<
+        PublicConfig
+      >(
+        "/api/config"
+      )
+        .then(
+          (
+            nextConfig
+          ) => {
+            if (
+              mounted
+            ) {
+              setConfig(
+                nextConfig
+              );
+            }
+          }
+        )
+        .catch(
+          (
+            nextError
+          ) => {
+            if (
+              mounted
+            ) {
+              setError(
+                getErrorMessage(
+                  nextError
+                )
+              );
+            }
+          }
+        );
+
+      return () => {
+        mounted =
+          false;
+      };
+    },
+    []
+  );
+
+  const proposedPlan =
+    plan?.status ===
+      "PROPOSED"
+      ? plan
       : null;
 
-  const decision =
-    verification
-      ?.verification
-      .decision ??
-    agentSession
-      ?.verification
-      .decision ??
-    null;
+  const requestArgs =
+    proposedPlan
+      ?.request
+      .arguments;
 
-  const activity =
-    agentRun
-      ?.agent
-      .activity ??
-    [];
+  /*
+   * -------------------------------------------------------
+   * SIDEBAR STATE
+   * -------------------------------------------------------
+   */
 
-  const progress =
+  const statePresentation =
     useMemo(
-      () => [
-        {
-          label:
-            "Intent",
-          complete:
-            Boolean(
-              intent
-            ),
-        },
+      () => {
+        if (
+          execution?.status ===
+          "COMPLETED"
+        ) {
+          return {
+            text:
+              "TOOL COMPLETED",
 
-        {
-          label:
-            "Wallet",
-          complete:
-            Boolean(
-              wallet
-            ),
-        },
+            className:
+              "allow",
 
-        {
-          label:
-            "Authorization",
-          complete:
-            Boolean(
-              authorization
-            ),
-        },
+            copy:
+              "The exact request matched the signed authorization, the payment completed, and the live tool result was returned.",
+          };
+        }
 
-        {
-          label:
-            "Agent",
-          complete:
-            Boolean(
-              agentRun
-            ),
-        },
+        if (
+          execution?.status ===
+          "STOPPED"
+        ) {
+          return {
+            text:
+              "TOOL CALL STOPPED",
 
-        {
-          label:
-            "BOUND",
-          complete:
-            Boolean(
-              decision
-            ),
-        },
-      ],
+            className:
+              "block",
+
+            copy:
+              execution.message,
+          };
+        }
+
+        if (
+          execution?.status ===
+          "READY"
+        ) {
+          return {
+            text:
+              "PAYMENT READY",
+
+            className:
+              "allow",
+
+            copy:
+              "The exact request matches the signed authorization. No payment has been sent.",
+          };
+        }
+
+        if (
+          execution?.status ===
+          "PAYMENT_BROADCAST_BUT_INCOMPLETE" ||
+          execution?.status ===
+          "EXECUTION_FAILED_BEFORE_PAYMENT"
+        ) {
+          return {
+            text:
+              "EXECUTION ISSUE",
+
+            className:
+              "needs_reauthorization",
+
+            copy:
+              execution.message,
+          };
+        }
+
+        if (
+          authorization
+        ) {
+          return {
+            text:
+              "AUTHORIZED",
+
+            className:
+              "allow",
+
+            copy:
+              "Your wallet authorized the exact request and payment terms. The payment boundary has not been evaluated yet.",
+          };
+        }
+
+        if (
+          draft
+        ) {
+          return {
+            text:
+              "REVIEW REQUEST",
+
+            className:
+              "waiting",
+
+            copy:
+              "Review the exact tool request and MPP payment terms before signing.",
+          };
+        }
+
+        if (
+          proposedPlan
+        ) {
+          return {
+            text:
+              "REQUEST PLANNED",
+
+            className:
+              "waiting",
+
+            copy:
+              "The transaction-check request has been canonicalized and hashed. No payment authorization exists yet.",
+          };
+        }
+
+        return {
+          text:
+            "WAITING",
+
+          className:
+            "waiting",
+
+          copy:
+            "Start by describing the exact BSC Testnet transaction you want the paid tool to check.",
+        };
+      },
       [
-        intent,
-        wallet,
         authorization,
-        agentRun,
-        decision,
+        draft,
+        execution,
+        proposedPlan,
       ]
     );
 
-  function resetAfterTask() {
-    setIntent(
+  const payerSigning =
+    execution?.audit
+      ?.signerInvoked ??
+    execution
+      ?.signerInvoked ??
+    false;
+
+  const paymentBroadcast =
+    execution?.audit
+      ?.paymentBroadcast ??
+    execution
+      ?.paymentBroadcast ??
+    Boolean(
+      execution
+        ?.paymentTxHash
+    );
+
+  const progress = {
+    request:
+      Boolean(
+        proposedPlan
+      ),
+
+    quote:
+      Boolean(
+        draft
+      ),
+
+    authorization:
+      Boolean(
+        authorization
+      ),
+
+    verification:
+      Boolean(
+        execution
+      ),
+
+    execution:
+      execution?.status ===
+      "COMPLETED",
+  };
+
+  /*
+   * -------------------------------------------------------
+   * RESET HELPERS
+   * -------------------------------------------------------
+   */
+
+  function resetAfterTaskChange() {
+    setPlan(
       null
     );
 
@@ -1304,20 +4652,12 @@ function WorkspacePage() {
       null
     );
 
-    setAgentRun(
+    setExecution(
       null
     );
 
-    setCandidate(
-      null
-    );
-
-    setVerification(
-      null
-    );
-
-    setReplay(
-      null
+    setScenario(
+      "normal"
     );
 
     setError(
@@ -1325,83 +4665,29 @@ function WorkspacePage() {
     );
   }
 
-  function changeTask(
-    value:
-      string
-  ) {
-    setTask(
-      value
-    );
-
-    resetAfterTask();
-  }
-
-  async function submitIntent() {
-    setBusy(
-      "intent"
-    );
-
-    setError(
+  function resetAfterPlan() {
+    setDraft(
       null
     );
 
-    try {
-      const result =
-        await apiRequest<
-          IntentResponse
-        >(
-          "/api/intent",
-          {
-            method:
-              "POST",
+    setAuthorization(
+      null
+    );
 
-            body: {
-              task,
-            },
-          }
-        );
+    setExecution(
+      null
+    );
 
-      setIntent(
-        result
-      );
-
-      setDraft(
-        null
-      );
-
-      setAuthorization(
-        null
-      );
-
-      setAgentRun(
-        null
-      );
-
-      setCandidate(
-        null
-      );
-
-      setVerification(
-        null
-      );
-
-      setReplay(
-        null
-      );
-    } catch (
-    nextError
-    ) {
-      setError(
-        getErrorMessage(
-          nextError
-        )
-      );
-    } finally {
-      setBusy(
-        null
-      );
-    }
+    setScenario(
+      "normal"
+    );
   }
+
+  /*
+   * -------------------------------------------------------
+   * CONNECT WALLET
+   * -------------------------------------------------------
+   */
 
   async function connectWallet() {
     setBusy(
@@ -1413,36 +4699,11 @@ function WorkspacePage() {
     );
 
     try {
-      const provider =
-        getProvider();
-
-      const result =
-        await provider.request({
-          method:
-            "eth_requestAccounts",
-        });
-
-      const accounts =
-        result as
-        string[];
-
-      const account =
-        accounts[0];
-
-      if (
-        !account
-      ) {
-        throw new Error(
-          "The wallet returned no account."
-        );
-      }
-
-      await ensureBscTestnet(
-        provider
-      );
+      const address =
+        await requestWalletAddress();
 
       setWallet(
-        account
+        address
       );
 
       setDraft(
@@ -1453,19 +4714,7 @@ function WorkspacePage() {
         null
       );
 
-      setAgentRun(
-        null
-      );
-
-      setCandidate(
-        null
-      );
-
-      setVerification(
-        null
-      );
-
-      setReplay(
+      setExecution(
         null
       );
     } catch (
@@ -1483,51 +4732,134 @@ function WorkspacePage() {
     }
   }
 
-  async function createDraft() {
+  /*
+   * -------------------------------------------------------
+   * STEP 01 — PLAN
+   * -------------------------------------------------------
+   */
+
+  async function planRequest() {
     if (
-      !intent?.intentId
+      !task.trim()
     ) {
       setError(
-        "Submit a valid purchasing intent first."
-      );
-
-      return;
-    }
-
-    if (
-      !wallet
-    ) {
-      setError(
-        "Connect the wallet that will authorize this purchase."
+        "Enter a transaction-check task first."
       );
 
       return;
     }
 
     setBusy(
-      "draft"
+      "plan"
     );
 
     setError(
       null
     );
 
+    resetAfterPlan();
+
     try {
       const result =
         await apiRequest<
-          AuthorizationDraftResponse
+          PlanResponse
         >(
-          "/api/authorization/draft",
+          "/api/plan",
           {
             method:
               "POST",
 
             body: {
-              intentId:
-                intent.intentId,
+              task,
+            },
+          }
+        );
+
+      setPlan(
+        result
+      );
+    } catch (
+    nextError
+    ) {
+      setError(
+        getErrorMessage(
+          nextError
+        )
+      );
+    } finally {
+      setBusy(
+        null
+      );
+    }
+  }
+
+  /*
+   * -------------------------------------------------------
+   * STEP 02 — FETCH MPP QUOTE + PREPARE EIP-712
+   * -------------------------------------------------------
+   */
+
+  async function prepareAuthorization() {
+    if (
+      !proposedPlan
+    ) {
+      setError(
+        "Plan an exact request first."
+      );
+
+      return;
+    }
+
+    setBusy(
+      "prepare"
+    );
+
+    setError(
+      null
+    );
+
+    setDraft(
+      null
+    );
+
+    setAuthorization(
+      null
+    );
+
+    setExecution(
+      null
+    );
+
+    try {
+      let activeWallet =
+        wallet;
+
+      if (
+        !activeWallet
+      ) {
+        activeWallet =
+          await requestWalletAddress();
+
+        setWallet(
+          activeWallet
+        );
+      }
+
+      const result =
+        await apiRequest<
+          AuthorizationDraftResponse
+        >(
+          "/api/authorization/prepare",
+          {
+            method:
+              "POST",
+
+            body: {
+              planId:
+                proposedPlan.planId,
 
               walletAddress:
-                wallet,
+                activeWallet,
             },
           }
         );
@@ -1535,26 +4867,6 @@ function WorkspacePage() {
       setDraft(
         result
       );
-
-      setAuthorization(
-        null
-      );
-
-      setAgentRun(
-        null
-      );
-
-      setCandidate(
-        null
-      );
-
-      setVerification(
-        null
-      );
-
-      setReplay(
-        null
-      );
     } catch (
     nextError
     ) {
@@ -1570,12 +4882,18 @@ function WorkspacePage() {
     }
   }
 
+  /*
+   * -------------------------------------------------------
+   * STEP 03 — SIGN EIP-712
+   * -------------------------------------------------------
+   */
+
   async function signAuthorization() {
     if (
       !draft
     ) {
       setError(
-        "Create an authorization draft first."
+        "Fetch the payment terms first."
       );
 
       return;
@@ -1585,14 +4903,14 @@ function WorkspacePage() {
       !wallet
     ) {
       setError(
-        "Connect your wallet first."
+        "Connect the wallet first."
       );
 
       return;
     }
 
     setBusy(
-      "signature"
+      "sign"
     );
 
     setError(
@@ -1652,19 +4970,7 @@ function WorkspacePage() {
         confirmed
       );
 
-      setAgentRun(
-        null
-      );
-
-      setCandidate(
-        null
-      );
-
-      setVerification(
-        null
-      );
-
-      setReplay(
+      setExecution(
         null
       );
     } catch (
@@ -1682,91 +4988,18 @@ function WorkspacePage() {
     }
   }
 
-  async function runAgent() {
+  /*
+   * -------------------------------------------------------
+   * STEP 04 — VERIFY PAYMENT BOUNDARY
+   * -------------------------------------------------------
+   */
+
+  async function verifyPaymentBoundary() {
     if (
       !authorization
     ) {
       setError(
-        "Sign the wallet authorization before running the agent."
-      );
-
-      return;
-    }
-
-    setBusy(
-      "agent"
-    );
-
-    setError(
-      null
-    );
-
-    setVerification(
-      null
-    );
-
-    setReplay(
-      null
-    );
-
-    try {
-      const result =
-        await apiRequest<
-          AgentRunResponse
-        >(
-          "/api/agent/run",
-          {
-            method:
-              "POST",
-
-            body: {
-              authorizationId:
-                authorization
-                  .authorizationId,
-
-              scenario,
-            },
-          }
-        );
-
-      setAgentRun(
-        result
-      );
-
-      if (
-        result.status ===
-        "SESSION_CREATED"
-      ) {
-        setCandidate({
-          ...result.transaction,
-        });
-      } else {
-        setCandidate(
-          null
-        );
-      }
-    } catch (
-    nextError
-    ) {
-      setError(
-        getErrorMessage(
-          nextError
-        )
-      );
-    } finally {
-      setBusy(
-        null
-      );
-    }
-  }
-
-  async function verifyCandidate() {
-    if (
-      !agentSession ||
-      !candidate
-    ) {
-      setError(
-        "Run the purchasing agent first."
+        "Authorize the exact request first."
       );
 
       return;
@@ -1780,28 +5013,33 @@ function WorkspacePage() {
       null
     );
 
+    setExecution(
+      null
+    );
+
     try {
       const result =
         await apiRequest<
-          VerifyResponse
+          ExecuteResponse
         >(
-          "/api/verify",
+          "/api/execute",
           {
             method:
               "POST",
 
             body: {
-              sessionId:
-                agentSession
-                  .sessionId,
+              authorizationId:
+                authorization.authorizationId,
 
-              transaction:
-                candidate,
+              scenario,
+
+              confirmRealPayment:
+                false,
             },
           }
         );
 
-      setVerification(
+      setExecution(
         result
       );
     } catch (
@@ -1819,20 +5057,47 @@ function WorkspacePage() {
     }
   }
 
-  async function runReplay() {
+  /*
+   * -------------------------------------------------------
+   * OPTIONAL REAL TESTNET EXECUTION
+   * -------------------------------------------------------
+   */
+
+  async function executeRealPayment() {
     if (
-      !agentSession ||
-      !candidate
+      !authorization
     ) {
       setError(
-        "Run the purchasing agent first."
+        "Authorize the exact request first."
+      );
+
+      return;
+    }
+
+    if (
+      scenario !==
+      "normal"
+    ) {
+      setError(
+        "Real payment is available only for the exact normal request."
+      );
+
+      return;
+    }
+
+    if (
+      !config?.payment
+        .realExecutionEnabled
+    ) {
+      setError(
+        "Real payment execution is disabled on the API server."
       );
 
       return;
     }
 
     setBusy(
-      "replay"
+      "execute"
     );
 
     setError(
@@ -1842,25 +5107,27 @@ function WorkspacePage() {
     try {
       const result =
         await apiRequest<
-          ReplayResponse
+          ExecuteResponse
         >(
-          "/api/replay-test",
+          "/api/execute",
           {
             method:
               "POST",
 
             body: {
-              sessionId:
-                agentSession
-                  .sessionId,
+              authorizationId:
+                authorization.authorizationId,
 
-              transaction:
-                candidate,
+              scenario:
+                "normal",
+
+              confirmRealPayment:
+                true,
             },
           }
         );
 
-      setReplay(
+      setExecution(
         result
       );
     } catch (
@@ -1878,72 +5145,11 @@ function WorkspacePage() {
     }
   }
 
-  function resetCandidate() {
-    if (
-      !agentSession
-    ) {
-      return;
-    }
-
-    setCandidate({
-      ...agentSession
-        .transaction,
-    });
-
-    setVerification(
-      null
-    );
-
-    setReplay(
-      null
-    );
-  }
-
-  function mutateRecipient() {
-    if (
-      !candidate
-    ) {
-      return;
-    }
-
-    setCandidate({
-      ...candidate,
-
-      to:
-        ATTACK_RECIPIENT,
-    });
-
-    setVerification(
-      null
-    );
-
-    setReplay(
-      null
-    );
-  }
-
-  function mutateAmount() {
-    if (
-      !candidate
-    ) {
-      return;
-    }
-
-    setCandidate({
-      ...candidate,
-
-      valueWei:
-        ALTERED_AMOUNT_WEI,
-    });
-
-    setVerification(
-      null
-    );
-
-    setReplay(
-      null
-    );
-  }
+  /*
+   * -------------------------------------------------------
+   * UI
+   * -------------------------------------------------------
+   */
 
   return (
     <Shell>
@@ -1951,979 +5157,1610 @@ function WorkspacePage() {
         <section className="workspace-heading">
           <div>
             <div className="eyebrow">
-              Controlled AI purchasing
+              Live request-bound workspace
             </div>
 
             <h1>
-              Agent Workspace
+              See exactly what
+              <br />
+              the agent is
+              <br />
+              paying for.
             </h1>
 
             <p>
-              Give Gemini a purchasing
-              objective. Your wallet defines
-              the spending mandate. BOUND
-              verifies the exact transaction
-              before a signer can act.
+              Plan a paid transaction-check
+              request, authorize that exact
+              request with your wallet, then
+              let BOUND verify it again at the
+              payment boundary.
             </p>
           </div>
 
           <div className="network-status">
             <span className="status-dot" />
 
-            BSC Testnet · Chain 97
+            BSC Testnet · 97
           </div>
         </section>
 
-        <section className="progress-strip">
-          {progress.map(
-            (
-              item,
-              index
-            ) => (
-              <div
-                className={
-                  item.complete
-                    ? "progress-item complete"
-                    : "progress-item"
-                }
-                key={
-                  item.label
-                }
-              >
-                <span>
-                  {String(
-                    index +
-                    1
-                  ).padStart(
-                    2,
-                    "0"
-                  )}
-                </span>
+        <div className="progress-strip">
+          <div
+            className={
+              progress.request
+                ? "progress-item complete"
+                : "progress-item"
+            }
+          >
+            <span>
+              01
+            </span>
 
-                {item.label}
-              </div>
-            )
-          )}
-        </section>
+            Request
+          </div>
+
+          <div
+            className={
+              progress.quote
+                ? "progress-item complete"
+                : "progress-item"
+            }
+          >
+            <span>
+              02
+            </span>
+
+            MPP quote
+          </div>
+
+          <div
+            className={
+              progress.authorization
+                ? "progress-item complete"
+                : "progress-item"
+            }
+          >
+            <span>
+              03
+            </span>
+
+            Authorize
+          </div>
+
+          <div
+            className={
+              progress.verification
+                ? "progress-item complete"
+                : "progress-item"
+            }
+          >
+            <span>
+              04
+            </span>
+
+            Verify
+          </div>
+
+          <div
+            className={
+              progress.execution
+                ? "progress-item complete"
+                : "progress-item"
+            }
+          >
+            <span>
+              05
+            </span>
+
+            Execute
+          </div>
+        </div>
 
         {error && (
-          <section className="error-banner">
+          <div className="error-banner">
             <strong>
-              Request stopped
+              Error
             </strong>
 
             <span>
               {error}
             </span>
-          </section>
+          </div>
         )}
 
         <div className="workspace-grid">
           <div className="workspace-main">
+            {/*
+             * =================================================
+             * STEP 01
+             * =================================================
+             */}
+
             <section className="panel task-panel">
               <div className="panel-heading">
                 <div>
                   <span className="panel-kicker">
-                    01 / Intent
+                    Step 01
                   </span>
 
                   <h2>
-                    What should the agent buy?
+                    Describe the transaction
+                    to check.
                   </h2>
                 </div>
 
                 <span className="technical-label">
-                  Gemini
+                  Gemini planning
                 </span>
               </div>
 
               <textarea
-                value={
-                  task
+                value={task}
+                onChange={
+                  (
+                    event
+                  ) => {
+                    setTask(
+                      event.target.value
+                    );
+
+                    resetAfterTaskChange();
+                  }
                 }
-                onChange={(
-                  event
-                ) =>
-                  changeTask(
-                    event.target
-                      .value
-                  )
-                }
-                rows={
-                  4
-                }
-                spellCheck={
-                  false
-                }
+                placeholder="Provide exact from, to, valueWei, and calldata."
               />
 
               <div className="action-row">
                 <button
                   className="button primary"
                   type="button"
-                  onClick={
-                    submitIntent
-                  }
                   disabled={
-                    Boolean(
-                      busy
-                    ) ||
-                    task.trim() ===
-                    ""
+                    busy !==
+                    null
+                  }
+                  onClick={
+                    () => {
+                      void planRequest();
+                    }
                   }
                 >
                   {busy ===
-                    "intent"
-                    ? "Gemini is parsing…"
-                    : "Parse purchase intent"}
+                    "plan"
+                    ? "Planning…"
+                    : "Plan exact request"}
                 </button>
 
-                {intent && (
-                  <span className="inline-note">
-                    {intent
-                      .readyForAuthorization
-                      ? "Intent is ready for wallet authorization."
-                      : intent
-                        .intent
-                        .clarification ??
-                      "More information is required."}
-                  </span>
-                )}
-              </div>
-
-              {intent && (
-                <div className="data-grid">
-                  <div>
-                    <span className="field-label">
-                      Resource
-                    </span>
-
-                    <strong>
-                      {intent
-                        .intent
-                        .resourceId ??
-                        "Unsupported"}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span className="field-label">
-                      Maximum
-                    </span>
-
-                    <strong>
-                      {intent
-                        .intent
-                        .maxAmountTbnb ??
-                        "—"}{" "}
-                      {intent
-                        .intent
-                        .assetSymbol}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span className="field-label">
-                      Network
-                    </span>
-
-                    <strong>
-                      {intent
-                        .intent
-                        .network}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span className="field-label">
-                      Intent ID
-                    </span>
-
-                    <code>
-                      {intent
-                        .intentId ??
-                        "—"}
-                    </code>
-                  </div>
-                </div>
-              )}
-            </section>
-
-            <section className="panel">
-              <div className="panel-heading">
-                <div>
-                  <span className="panel-kicker">
-                    02 / Authorization
-                  </span>
-
-                  <h2>
-                    Bind the mandate to your wallet.
-                  </h2>
-                </div>
-
-                <span className="technical-label">
-                  EIP-712
+                <span className="inline-note">
+                  Gemini proposes the
+                  transaction fields. BOUND
+                  canonicalizes and hashes the
+                  exact tool request host-side.
                 </span>
               </div>
 
-              <div className="wallet-row">
-                <div>
-                  <span className="field-label">
-                    Owner wallet
-                  </span>
+              {plan?.status ===
+                "NO_PROPOSAL" && (
+                  <div className="neutral-result">
+                    <strong>
+                      More information required
+                    </strong>
 
-                  <strong>
-                    {wallet
-                      ? formatAddress(
-                        wallet
-                      )
-                      : "Not connected"}
-                  </strong>
+                    <p>
+                      {plan.message}
+                    </p>
+                  </div>
+                )}
+
+              {proposedPlan && (
+                <>
+                  <div className="data-grid">
+                    <Field label="Tool">
+                      <strong>
+                        {proposedPlan
+                          .request
+                          .toolId}
+                      </strong>
+                    </Field>
+
+                    <Field label="Method">
+                      <strong>
+                        {proposedPlan
+                          .request
+                          .method}
+                      </strong>
+                    </Field>
+
+                    <Field label="Network">
+                      <strong>
+                        {proposedPlan
+                          .network}
+                      </strong>
+                    </Field>
+
+                    <Field label="Model">
+                      <strong>
+                        {proposedPlan
+                          .model}
+                      </strong>
+                    </Field>
+                  </div>
+
+                  <div className="transaction-editor">
+                    <label>
+                      <span>
+                        Transaction hash
+                      </span>
+
+                      <input
+                        readOnly
+                        value={
+                          requestArgs
+                            ?.transactionHash ??
+                          ""
+                        }
+                      />
+                    </label>
+
+                    <label>
+                      <span>
+                        Chain ID
+                      </span>
+
+                      <input
+                        readOnly
+                        value={
+                          requestArgs
+                            ?.chainId
+                            ?.toString() ??
+                          ""
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <div className="data-grid">
+                    <Field label="Request hash">
+                      <code>
+                        {proposedPlan
+                          .requestHash}
+                      </code>
+                    </Field>
+
+                    <Field label="Plan expires">
+                      <strong>
+                        {formatTimestamp(
+                          proposedPlan
+                            .expiresAt
+                        )}
+                      </strong>
+                    </Field>
+                  </div>
+
+                  <div className="activity-log">
+                    {proposedPlan
+                      .activity
+                      .map(
+                        (
+                          item,
+                          index
+                        ) => (
+                          <div
+                            className="activity-entry"
+                            key={`${item.step}-${index}`}
+                          >
+                            <span>
+                              {String(
+                                index +
+                                1
+                              ).padStart(
+                                2,
+                                "0"
+                              )}
+                            </span>
+
+                            <div>
+                              <strong>
+                                {item.step}
+                              </strong>
+
+                              <p>
+                                {item.message}
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      )}
+                  </div>
+                </>
+              )}
+            </section>
+
+            {/*
+             * =================================================
+             * STEP 02 + 03
+             * =================================================
+             */}
+
+            {proposedPlan && (
+              <section className="panel">
+                <div className="panel-heading">
+                  <div>
+                    <span className="panel-kicker">
+                      Step 02
+                    </span>
+
+                    <h2>
+                      Fetch real payment
+                      terms.
+                    </h2>
+                  </div>
+
+                  <span className="technical-label">
+                    HTTP 402 · BNB MPP
+                  </span>
                 </div>
 
-                <button
-                  className="button ghost"
-                  type="button"
-                  onClick={
-                    connectWallet
-                  }
-                  disabled={
-                    Boolean(
-                      busy
-                    )
-                  }
-                >
-                  {busy ===
-                    "wallet"
-                    ? "Connecting…"
-                    : wallet
-                      ? "Reconnect wallet"
-                      : "Connect MetaMask / Rabby"}
-                </button>
-              </div>
+                <div className="wallet-row">
+                  <div>
+                    <span className="field-label">
+                      Authorization wallet
+                    </span>
 
-              {intent
-                ?.readyForAuthorization &&
-                wallet &&
-                !draft &&
-                !authorization && (
+                    <strong>
+                      {wallet
+                        ? formatAddress(
+                          wallet
+                        )
+                        : "Not connected"}
+                    </strong>
+                  </div>
+
+                  <button
+                    className="button ghost"
+                    type="button"
+                    disabled={
+                      busy !==
+                      null
+                    }
+                    onClick={
+                      () => {
+                        void connectWallet();
+                      }
+                    }
+                  >
+                    {busy ===
+                      "wallet"
+                      ? "Connecting…"
+                      : wallet
+                        ? "Reconnect wallet"
+                        : "Connect wallet"}
+                  </button>
+                </div>
+
+                {!draft && (
                   <div className="action-row">
                     <button
                       className="button primary"
                       type="button"
-                      onClick={
-                        createDraft
-                      }
                       disabled={
-                        Boolean(
-                          busy
-                        )
+                        busy !==
+                        null
+                      }
+                      onClick={
+                        () => {
+                          void prepareAuthorization();
+                        }
                       }
                     >
                       {busy ===
-                        "draft"
-                        ? "Creating draft…"
-                        : "Review authorization"}
+                        "prepare"
+                        ? "Fetching…"
+                        : "Fetch payment terms"}
                     </button>
+
+                    <span className="inline-note">
+                      This requests a real
+                      MPP HTTP 402 challenge.
+                      It does not send a
+                      payment.
+                    </span>
                   </div>
                 )}
 
-              {draft &&
-                !authorization && (
-                  <div className="authorization-review">
+                {draft && (
+                  <>
                     <div className="data-grid">
-                      <div>
-                        <span className="field-label">
-                          Maximum spend
-                        </span>
-
+                      <Field label="Protocol">
                         <strong>
                           {draft
-                            .authorization
-                            .maxAmountTbnb}{" "}
-                          tBNB
+                            .payment
+                            .protocol}
                         </strong>
-                      </div>
+                      </Field>
 
-                      <div>
-                        <span className="field-label">
-                          Resource
-                        </span>
-
+                      <Field label="Price">
                         <strong>
                           {draft
-                            .authorization
-                            .resourceId}
+                            .payment
+                            .amount}{" "}
+                          {draft
+                            .payment
+                            .token}
                         </strong>
-                      </div>
+                      </Field>
 
-                      <div>
-                        <span className="field-label">
-                          Trusted source
-                        </span>
-
+                      <Field label="Payment token">
                         <strong>
                           {draft
-                            .authorization
-                            .trustedSourceId}
+                            .payment
+                            .token}
                         </strong>
-                      </div>
+                      </Field>
 
-                      <div>
-                        <span className="field-label">
-                          Draft expires
-                        </span>
+                      <Field label="Credential">
+                        <strong>
+                          {draft
+                            .payment
+                            .credentialType}
+                        </strong>
+                      </Field>
 
+                      <Field label="Token contract">
+                        <code>
+                          {draft
+                            .payment
+                            .tokenContract}
+                        </code>
+                      </Field>
+
+                      <Field label="Payment recipient">
+                        <code>
+                          {draft
+                            .payment
+                            .recipient}
+                        </code>
+                      </Field>
+
+                      <Field label="Chain">
+                        <strong>
+                          {draft
+                            .payment
+                            .chainId}
+                        </strong>
+                      </Field>
+
+                      <Field label="Draft expires">
                         <strong>
                           {formatTimestamp(
                             draft
                               .draftExpiresAt
                           )}
                         </strong>
-                      </div>
+                      </Field>
                     </div>
 
                     <div className="signed-boundary">
-                      <span>
-                        Your wallet signs
-                        this exact mandate.
-                        No payment transaction
-                        is being signed here.
-                      </span>
+                      <div>
+                        <span className="field-label">
+                          Wallet will authorize
+                        </span>
 
-                      <button
-                        className="button primary"
-                        type="button"
-                        onClick={
-                          signAuthorization
-                        }
-                        disabled={
-                          Boolean(
-                            busy
-                          )
-                        }
-                      >
-                        {busy ===
-                          "signature"
-                          ? "Waiting for wallet…"
-                          : "Sign EIP-712 authorization"}
-                      </button>
+                        <code>
+                          {draft
+                            .requestHash}
+                        </code>
+                      </div>
+
+                      <strong>
+                        Exact request
+                      </strong>
                     </div>
-                  </div>
-                )}
 
-              {authorization && (
-                <div className="success-line">
-                  <span className="status-dot" />
-
-                  <div>
-                    <strong>
-                      Wallet authorization verified
-                    </strong>
-
-                    <small>
-                      {formatAddress(
-                        authorization
-                          .signer
-                      )}{" "}
-                      · max{" "}
-                      {authorization
-                        .authorization
-                        .maxAmountTbnb}{" "}
-                      tBNB
-                    </small>
-                  </div>
-                </div>
-              )}
-            </section>
-
-            <section className="panel">
-              <div className="panel-heading">
-                <div>
-                  <span className="panel-kicker">
-                    03 / Agent
-                  </span>
-
-                  <h2>
-                    Let Gemini source the signed quote.
-                  </h2>
-                </div>
-
-                <span className="technical-label">
-                  Function calling
-                </span>
-              </div>
-
-              <div className="scenario-switch">
-                <button
-                  type="button"
-                  className={
-                    scenario ===
-                      "normal"
-                      ? "scenario-option active"
-                      : "scenario-option"
-                  }
-                  onClick={() =>
-                    setScenario(
-                      "normal"
-                    )
-                  }
-                >
-                  Normal context
-                </button>
-
-                <button
-                  type="button"
-                  className={
-                    scenario ===
-                      "poisoned"
-                      ? "scenario-option active danger"
-                      : "scenario-option danger"
-                  }
-                  onClick={() =>
-                    setScenario(
-                      "poisoned"
-                    )
-                  }
-                >
-                  Controlled context mutation
-                </button>
-              </div>
-
-              <p className="technical-copy">
-                The mutation mode changes
-                only the recipient shown to
-                Gemini after the signed quote
-                reaches the host. The
-                original signed evidence is
-                retained unchanged for BOUND
-                verification.
-              </p>
-
-              <div className="action-row">
-                <button
-                  className="button primary"
-                  type="button"
-                  disabled={
-                    !authorization ||
-                    Boolean(
-                      busy
-                    )
-                  }
-                  onClick={
-                    runAgent
-                  }
-                >
-                  {busy ===
-                    "agent"
-                    ? "Gemini is working…"
-                    : "Run purchasing agent"}
-                </button>
-
-                {!authorization && (
-                  <span className="inline-note">
-                    Wallet authorization is required first.
-                  </span>
-                )}
-              </div>
-
-              {activity.length >
-                0 && (
-                  <div className="activity-log">
-                    {activity.map(
-                      (
-                        entry,
-                        index
-                      ) => (
-                        <div
-                          className="activity-entry"
-                          key={`${entry.step}-${index}`}
-                        >
-                          <span>
-                            {String(
-                              index +
-                              1
-                            ).padStart(
-                              2,
-                              "0"
-                            )}
-                          </span>
-
-                          <div>
-                            <strong>
-                              {entry.step}
-                            </strong>
-
-                            <p>
-                              {entry.message}
-                            </p>
-                          </div>
-                        </div>
-                      )
-                    )}
-                  </div>
-                )}
-
-              {agentRun
-                ?.status ===
-                "NO_PROPOSAL" && (
-                  <div className="neutral-result">
-                    <strong>
-                      No transaction proposed
-                    </strong>
-
-                    <p>
-                      {agentRun
-                        .agent
-                        .message}
+                    <p className="technical-copy">
+                      The EIP-712 message
+                      binds this exact request
+                      hash to chain 97, the
+                      quoted TEST_USDT token,
+                      payment recipient,
+                      maximum amount,
+                      credential type, and
+                      expiry.
                     </p>
-                  </div>
+
+                    {!authorization && (
+                      <div className="action-row">
+                        <button
+                          className="button primary"
+                          type="button"
+                          disabled={
+                            busy !==
+                            null
+                          }
+                          onClick={
+                            () => {
+                              void signAuthorization();
+                            }
+                          }
+                        >
+                          {busy ===
+                            "sign"
+                            ? "Waiting for wallet…"
+                            : "Authorize exact request"}
+                        </button>
+
+                        <span className="inline-note">
+                          This creates an
+                          EIP-712 signature.
+                          It is not an
+                          onchain transaction.
+                        </span>
+                      </div>
+                    )}
+
+                    {authorization && (
+                      <div className="success-line">
+                        <div>
+                          <strong>
+                            Exact request authorized
+                          </strong>
+
+                          <small>
+                            signer{" "}
+                            {formatAddress(
+                              authorization
+                                .signer
+                            )}
+                          </small>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
+              </section>
+            )}
 
-              {agentSession
-                ?.agent
-                .contextMutation && (
-                  <div className="mutation-box">
-                    <span className="panel-kicker">
-                      Controlled mutation
-                    </span>
+            {/*
+             * =================================================
+             * STEP 04
+             * =================================================
+             */}
 
-                    <div>
-                      <span className="field-label">
-                        Signed recipient
-                      </span>
-
-                      <code>
-                        {agentSession
-                          .agent
-                          .contextMutation
-                          .signedValue}
-                      </code>
-                    </div>
-
-                    <div>
-                      <span className="field-label">
-                        Model-visible recipient
-                      </span>
-
-                      <code>
-                        {agentSession
-                          .agent
-                          .contextMutation
-                          .modelVisibleValue}
-                      </code>
-                    </div>
-                  </div>
-                )}
-            </section>
-
-            {candidate && (
-              <section className="panel transaction-panel">
+            {authorization && (
+              <section className="panel">
                 <div className="panel-heading">
                   <div>
                     <span className="panel-kicker">
-                      04 / Candidate
+                      Step 03
                     </span>
 
                     <h2>
-                      Inspect the exact transaction.
+                      Re-check at the
+                      payment boundary.
                     </h2>
                   </div>
 
                   <span className="technical-label">
-                    Unsigned
+                    Deterministic gate
                   </span>
                 </div>
 
-                <div className="transaction-editor">
-                  <label>
-                    <span>
-                      Recipient
-                    </span>
-
-                    <input
-                      value={
-                        candidate.to
-                      }
-                      onChange={(
-                        event
-                      ) => {
-                        setCandidate({
-                          ...candidate,
-
-                          to:
-                            event
-                              .target
-                              .value,
-                        });
-
-                        setVerification(
-                          null
-                        );
-
-                        setReplay(
-                          null
-                        );
-                      }}
-                    />
-                  </label>
-
-                  <label>
-                    <span>
-                      Amount · wei
-                    </span>
-
-                    <input
-                      value={
-                        candidate
-                          .valueWei
-                      }
-                      onChange={(
-                        event
-                      ) => {
-                        setCandidate({
-                          ...candidate,
-
-                          valueWei:
-                            event
-                              .target
-                              .value,
-                        });
-
-                        setVerification(
-                          null
-                        );
-
-                        setReplay(
-                          null
-                        );
-                      }}
-                    />
-
-                    <small>
-                      ≈{" "}
-                      {formatWei(
-                        candidate
-                          .valueWei
-                      )}{" "}
-                      tBNB
-                    </small>
-                  </label>
-
-                  <label>
-                    <span>
-                      Chain ID
-                    </span>
-
-                    <input
-                      type="number"
-                      value={
-                        candidate
-                          .chainId
-                      }
-                      onChange={(
-                        event
-                      ) => {
-                        setCandidate({
-                          ...candidate,
-
-                          chainId:
-                            Number(
-                              event
-                                .target
-                                .value
-                            ),
-                        });
-
-                        setVerification(
-                          null
-                        );
-
-                        setReplay(
-                          null
-                        );
-                      }}
-                    />
-                  </label>
-
-                  <label>
-                    <span>
-                      Calldata
-                    </span>
-
-                    <input
-                      value={
-                        candidate
-                          .data
-                      }
-                      onChange={(
-                        event
-                      ) => {
-                        setCandidate({
-                          ...candidate,
-
-                          data:
-                            event
-                              .target
-                              .value,
-                        });
-
-                        setVerification(
-                          null
-                        );
-
-                        setReplay(
-                          null
-                        );
-                      }}
-                    />
-                  </label>
-                </div>
-
-                <div className="attack-shortcuts">
-                  <span>
-                    Controlled test shortcuts
-                  </span>
-
+                <div className="scenario-switch">
                   <button
+                    className={
+                      scenario ===
+                        "normal"
+                        ? "scenario-option active"
+                        : "scenario-option"
+                    }
                     type="button"
+                    disabled={
+                      busy !==
+                      null
+                    }
                     onClick={
-                      mutateAmount
+                      () => {
+                        setScenario(
+                          "normal"
+                        );
+
+                        setExecution(
+                          null
+                        );
+                      }
                     }
                   >
-                    Alter amount
+                    Exact request
                   </button>
 
                   <button
-                    type="button"
-                    onClick={
-                      mutateRecipient
+                    className={
+                      scenario ===
+                        "tampered"
+                        ? "scenario-option active danger"
+                        : "scenario-option danger"
                     }
-                  >
-                    Alter recipient
-                  </button>
+                    type="button"
+                    disabled={
+                      busy !==
+                      null
+                    }
+                    onClick={
+                      () => {
+                        setScenario(
+                          "tampered"
+                        );
 
-                  <button
-                    type="button"
-                    onClick={
-                      resetCandidate
+                        setExecution(
+                          null
+                        );
+                      }
                     }
                   >
-                    Restore agent proposal
+                    Controlled mutation
                   </button>
                 </div>
+
+                <p className="technical-copy">
+                  {scenario ===
+                    "normal"
+                    ? "The actual request reaching the payment boundary remains identical to the request your wallet authorized."
+                    : "The paid tool request is changed after authorization while the MPP chain, token, merchant, amount, and credential type remain unchanged."}
+                </p>
+
+                {scenario ===
+                  "tampered" && (
+                    <div className="mutation-box">
+                      <div>
+                        <span className="field-label">
+                          Authorized transaction
+                        </span>
+
+                        <code>
+                          {requestArgs
+                            ?.transactionHash ??
+                            "—"}
+                        </code>
+                      </div>
+
+                      <div>
+                        <span className="field-label">
+                          Model-visible actual transaction
+                        </span>
+
+                        <code>
+                          {CONTROLLED_TAMPER_TRANSACTION_HASH}
+                        </code>
+                      </div>
+                    </div>
+                  )}
 
                 <div className="action-row">
                   <button
                     className="button primary"
                     type="button"
                     disabled={
-                      Boolean(
-                        busy
-                      )
+                      busy !==
+                      null
                     }
                     onClick={
-                      verifyCandidate
+                      () => {
+                        void verifyPaymentBoundary();
+                      }
                     }
                   >
                     {busy ===
                       "verify"
                       ? "Verifying…"
-                      : "Verify with BOUND"}
+                      : scenario ===
+                        "tampered"
+                        ? "Run mutation check"
+                        : "Check payment boundary"}
                   </button>
 
-                  <button
-                    className="button ghost"
-                    type="button"
-                    disabled={
-                      Boolean(
-                        busy
-                      )
-                    }
-                    onClick={
-                      runReplay
-                    }
-                  >
-                    {busy ===
-                      "replay"
-                      ? "Testing replay…"
-                      : "Exercise replay gate"}
-                  </button>
+                  <span className="inline-note">
+                    This verifies the
+                    request without asking
+                    the protected payer to
+                    send money.
+                  </span>
                 </div>
+
+                {execution && (
+                  <>
+                    {execution.status ===
+                      "READY" && (
+                        <div className="neutral-result">
+                          <strong>
+                            Payment ready
+                          </strong>
+
+                          <p>
+                            {execution.message}
+                          </p>
+                        </div>
+                      )}
+
+                    {execution.status ===
+                      "STOPPED" && (
+                        <div className="mutation-box">
+                          <div>
+                            <span className="field-label">
+                              Paid tool call stopped
+                            </span>
+
+                            <strong>
+                              {execution.message}
+                            </strong>
+                          </div>
+
+                          <div>
+                            <span className="field-label">
+                              Payment transaction
+                            </span>
+
+                            <code>
+                              none
+                            </code>
+                          </div>
+                        </div>
+                      )}
+
+                    {execution.status ===
+                      "COMPLETED" && (
+                        <div className="success-line">
+                          <div>
+                            <strong>
+                              Tool completed
+                            </strong>
+
+                            <small>
+                              real MPP payment ·
+                              live BSC Testnet RPC
+                            </small>
+                          </div>
+                        </div>
+                      )}
+
+                    {(execution.status ===
+                      "PAYMENT_BROADCAST_BUT_INCOMPLETE" ||
+                      execution.status ===
+                      "EXECUTION_FAILED_BEFORE_PAYMENT") && (
+                        <div className="error-banner">
+                          <strong>
+                            Execution issue
+                          </strong>
+
+                          <span>
+                            {execution.error ??
+                              execution.message}
+                          </span>
+                        </div>
+                      )}
+
+                    {execution.whatChanged && (
+                      <section className="proof-card">
+                        <div className="eyebrow">
+                          What Changed?
+                        </div>
+
+                        <h2>
+                          {execution.whatChanged.outcome.title}
+                        </h2>
+
+                        <p className="technical-copy">
+                          {execution.whatChanged.outcome.message}
+                        </p>
+
+                        <div className="activity-log">
+                          <ComparisonRow
+                            label="Transaction"
+                            value={
+                              execution.whatChanged
+                                .comparison.transaction !==
+                              "CHANGED"
+                            }
+                            trueLabel={
+                              execution.whatChanged
+                                .comparison.transaction
+                            }
+                            falseLabel="CHANGED"
+                          />
+
+                          <ComparisonRow
+                            label="Tool"
+                            value={
+                              execution.whatChanged
+                                .comparison.analysisTool !==
+                              "CHANGED"
+                            }
+                            trueLabel={
+                              execution.whatChanged
+                                .comparison.analysisTool
+                            }
+                            falseLabel="CHANGED"
+                          />
+
+                          <ComparisonRow
+                            label="Network"
+                            value={
+                              execution.whatChanged
+                                .comparison.network !==
+                              "CHANGED"
+                            }
+                            trueLabel={
+                              execution.whatChanged
+                                .comparison.network
+                            }
+                            falseLabel="CHANGED"
+                          />
+
+                          <ComparisonRow
+                            label="Price"
+                            value={
+                              execution.whatChanged
+                                .comparison.price !==
+                              "CHANGED"
+                            }
+                            trueLabel={
+                              execution.whatChanged
+                                .comparison.price
+                            }
+                            falseLabel="CHANGED"
+                          />
+
+                          <ComparisonRow
+                            label="Token"
+                            value={
+                              execution.whatChanged
+                                .comparison.token !==
+                              "CHANGED"
+                            }
+                            trueLabel={
+                              execution.whatChanged
+                                .comparison.token
+                            }
+                            falseLabel="CHANGED"
+                          />
+
+                          <ComparisonRow
+                            label="Merchant"
+                            value={
+                              execution.whatChanged
+                                .comparison.merchant !==
+                              "CHANGED"
+                            }
+                            trueLabel={
+                              execution.whatChanged
+                                .comparison.merchant
+                            }
+                            falseLabel="CHANGED"
+                          />
+                        </div>
+
+                        <div className="data-grid">
+                          <Field label="Payment">
+                            <strong
+                              className={
+                                execution.whatChanged
+                                  .outcome.paymentStopped
+                                  ? "mismatch"
+                                  : "match"
+                              }
+                            >
+                              {execution.whatChanged
+                                .outcome.paymentStopped
+                                ? "STOPPED"
+                                : execution.whatChanged
+                                    .outcome.broadcast
+                                  ? "BROADCAST"
+                                  : "NOT SENT"}
+                            </strong>
+                          </Field>
+
+                          <Field label="Protected payer">
+                            <strong
+                              className={
+                                execution.whatChanged
+                                  .outcome.payerInvoked
+                                  ? "mismatch"
+                                  : "match"
+                              }
+                            >
+                              {execution.whatChanged
+                                .outcome.payerInvoked
+                                ? "INVOKED"
+                                : "NOT INVOKED"}
+                            </strong>
+                          </Field>
+
+                          <Field label="Payment broadcast">
+                            <strong
+                              className={
+                                execution.whatChanged
+                                  .outcome.broadcast
+                                  ? "mismatch"
+                                  : "match"
+                              }
+                            >
+                              {execution.whatChanged
+                                .outcome.broadcast
+                                ? "YES"
+                                : "NO"}
+                            </strong>
+                          </Field>
+                        </div>
+
+                        <details>
+                          <summary>
+                            Technical details
+                          </summary>
+
+                          <div className="data-grid">
+                            <Field label="Finding">
+                              <code>
+                                {execution.whatChanged
+                                  .technical.findingCode ??
+                                  "—"}
+                              </code>
+                            </Field>
+
+                            <Field label="Authorized transaction">
+                              <code>
+                                {execution.whatChanged
+                                  .authorized.transactionHash}
+                              </code>
+                            </Field>
+
+                            <Field label="Actual transaction">
+                              <code>
+                                {execution.whatChanged
+                                  .actual.transactionHash ??
+                                  "—"}
+                              </code>
+                            </Field>
+
+                            <Field label="Authorized request hash">
+                              <code>
+                                {execution.whatChanged
+                                  .technical
+                                  .authorizedRequestHash}
+                              </code>
+                            </Field>
+
+                            <Field label="Actual request hash">
+                              <code>
+                                {execution.whatChanged
+                                  .technical
+                                  .actualRequestHash}
+                              </code>
+                            </Field>
+                          </div>
+                        </details>
+                      </section>
+                    )}
+
+                    {!execution.whatChanged && execution.request && (
+                      <>
+                        <div className="data-grid">
+                          <Field label="Authorized hash">
+                            <code>
+                              {execution
+                                .request
+                                .authorizedRequestHash}
+                            </code>
+                          </Field>
+
+                          <Field label="Actual hash">
+                            <code>
+                              {execution
+                                .request
+                                .actualRequestHash}
+                            </code>
+                          </Field>
+
+                          <Field label="Request integrity">
+                            <strong
+                              className={
+                                execution
+                                  .request
+                                  .matches
+                                  ? "match"
+                                  : "mismatch"
+                              }
+                            >
+                              {execution
+                                .request
+                                .matches
+                                ? "MATCH"
+                                : "BREAK"}
+                            </strong>
+                          </Field>
+
+                          <Field label="Finding">
+                            <strong>
+                              {execution
+                                .verification
+                                ?.findings[0]
+                                ?.code ??
+                                "—"}
+                            </strong>
+                          </Field>
+                        </div>
+
+                        {scenario ===
+                          "tampered" && (
+                            <div className="mutation-box">
+                              <div>
+                                <span className="field-label">
+                                  Authorized transaction
+                                </span>
+
+                                <code>
+                                  {execution
+                                    .request
+                                    .authorized
+                                    .arguments
+                                    .transactionHash}
+                                </code>
+                              </div>
+
+                              <div>
+                                <span className="field-label">
+                                  Actual transaction
+                                </span>
+
+                                <code>
+                                  {execution
+                                    .request
+                                    .actual
+                                    .arguments
+                                    .transactionHash}
+                                </code>
+                              </div>
+                            </div>
+                          )}
+                      </>
+                    )}
+
+                    {!execution.whatChanged && execution.paymentTerms && (
+                      <div className="activity-log">
+                        <ComparisonRow
+                          label="Chain"
+                          value={
+                            execution
+                              .paymentTerms
+                              .sameChain
+                          }
+                          trueLabel="UNCHANGED"
+                          falseLabel="CHANGED"
+                        />
+
+                        <ComparisonRow
+                          label="Token"
+                          value={
+                            execution
+                              .paymentTerms
+                              .sameToken
+                          }
+                          trueLabel="UNCHANGED"
+                          falseLabel="CHANGED"
+                        />
+
+                        <ComparisonRow
+                          label="Payment recipient"
+                          value={
+                            execution
+                              .paymentTerms
+                              .sameRecipient
+                          }
+                          trueLabel="UNCHANGED"
+                          falseLabel="CHANGED"
+                        />
+
+                        <ComparisonRow
+                          label="Amount"
+                          value={
+                            execution
+                              .paymentTerms
+                              .sameAmount
+                          }
+                          trueLabel="UNCHANGED"
+                          falseLabel="CHANGED"
+                        />
+
+                        <ComparisonRow
+                          label="Credential type"
+                          value={
+                            execution
+                              .paymentTerms
+                              .sameCredentialType
+                          }
+                          trueLabel="UNCHANGED"
+                          falseLabel="CHANGED"
+                        />
+                      </div>
+                    )}
+
+                    {execution.status ===
+                      "READY" && (
+                        <>
+                          {config?.payment
+                            .realExecutionEnabled
+                            ? (
+                              <div className="action-row">
+                                <button
+                                  className="button primary"
+                                  type="button"
+                                  disabled={
+                                    busy !==
+                                    null
+                                  }
+                                  onClick={
+                                    () => {
+                                      void executeRealPayment();
+                                    }
+                                  }
+                                >
+                                  {busy ===
+                                    "execute"
+                                    ? "Executing…"
+                                    : "Execute real testnet payment"}
+                                </button>
+
+                                <span className="inline-note">
+                                  This sends a
+                                  real 0.001
+                                  TEST_USDT
+                                  payment on BSC
+                                  Testnet.
+                                </span>
+                              </div>
+                            )
+                            : (
+                              <div className="neutral-result">
+                                <strong>
+                                  Real payment disabled
+                                </strong>
+
+                                <p>
+                                  The API is
+                                  currently running
+                                  in verification-only
+                                  mode. No TEST_USDT
+                                  can be sent from
+                                  this workspace.
+                                </p>
+                              </div>
+                            )}
+                        </>
+                      )}
+
+                    {execution.status ===
+                      "COMPLETED" && (
+                        <>
+                          <div className="data-grid">
+                            <Field label="Payment tx">
+                              <code>
+                                {execution
+                                  .payment
+                                  ?.txHash ??
+                                  "—"}
+                              </code>
+                            </Field>
+
+                            <Field label="Confirmed block">
+                              <strong>
+                                {execution
+                                  .payment
+                                  ?.confirmedBlock ??
+                                  "—"}
+                              </strong>
+                            </Field>
+
+                            <Field label="Payment receipt">
+                              <strong>
+                                {execution
+                                  .receipt
+                                  ?.status ??
+                                  "—"}
+                              </strong>
+                            </Field>
+
+                            <Field label="Receipt matches tx">
+                              <strong>
+                                {boolLabel(
+                                  execution
+                                    .receipt
+                                    ?.matchesPaymentTx
+                                )}
+                              </strong>
+                            </Field>
+
+                            <Field label="RPC source">
+                              <strong>
+                                {execution
+                                  .toolResult
+                                  ?.source ??
+                                  "—"}
+                              </strong>
+                            </Field>
+
+                            <Field label="RPC block">
+                              <strong>
+                                {execution
+                                  .toolResult
+                                  ?.blockNumber ??
+                                  "—"}
+                              </strong>
+                            </Field>
+
+                            <Field label="Payer token decrease">
+                              <strong>
+                                {execution
+                                  .audit
+                                  ?.payerTokenDecrease ??
+                                  "—"}{" "}
+                                {execution
+                                  .audit
+                                  ?.tokenSymbol ??
+                                  ""}
+                              </strong>
+                            </Field>
+
+                            <Field label="Merchant token increase">
+                              <strong>
+                                {execution
+                                  .audit
+                                  ?.merchantTokenIncrease ??
+                                  "—"}{" "}
+                                {execution
+                                  .audit
+                                  ?.tokenSymbol ??
+                                  ""}
+                              </strong>
+                            </Field>
+                          </div>
+
+                          <div className="neutral-result">
+                            <strong>
+                              Live RPC result
+                            </strong>
+
+                            <p>
+                              <code>
+                                {safeJson(
+                                  execution
+                                    .toolResult
+                                    ?.rpcResult
+                                )}
+                              </code>
+                            </p>
+                          </div>
+
+                          {execution
+                            .payment
+                            ?.explorerUrl && (
+                              <div className="action-row">
+                                <a
+                                  className="button ghost"
+                                  href={
+                                    execution
+                                      .payment
+                                      .explorerUrl
+                                  }
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Inspect payment
+                                </a>
+                              </div>
+                            )}
+                        </>
+                      )}
+
+                    {execution.status ===
+                      "PAYMENT_BROADCAST_BUT_INCOMPLETE" &&
+                      execution.explorerUrl && (
+                        <div className="action-row">
+                          <a
+                            className="button ghost"
+                            href={
+                              execution
+                                .explorerUrl
+                            }
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Inspect broadcast tx
+                          </a>
+                        </div>
+                      )}
+                  </>
+                )}
               </section>
             )}
           </div>
 
+          {/*
+           * ===================================================
+           * SIDEBAR
+           * ===================================================
+           */}
+
           <aside className="workspace-side">
             <section className="decision-card">
               <span className="panel-kicker">
-                Signer boundary
+                Payment boundary
               </span>
 
               <div
                 className={
-                  decision
-                    ? `decision ${decision.toLowerCase()}`
-                    : "decision waiting"
+                  `decision ${statePresentation.className}`
                 }
               >
-                {decision ??
-                  "WAITING"}
+                {statePresentation.text}
               </div>
 
               <p>
-                ALLOW means the
-                authorization, signed
-                evidence, and current
-                candidate are mutually
-                consistent. It is not a
-                universal safety claim.
+                {statePresentation.copy}
               </p>
 
               <div className="boundary-status">
                 <div>
                   <span>
-                    Signer invoked
+                    Payer signing
                   </span>
 
                   <strong>
-                    No
+                    {payerSigning
+                      ? "YES"
+                      : "NO"}
                   </strong>
                 </div>
 
                 <div>
                   <span>
-                    Broadcast
+                    Payment broadcast
                   </span>
 
                   <strong>
-                    No
+                    {paymentBroadcast
+                      ? "YES"
+                      : "NO"}
                   </strong>
                 </div>
               </div>
             </section>
 
-            {agentSession && (
+            {config && (
               <section className="side-card">
                 <span className="panel-kicker">
-                  Signed evidence
+                  Live configuration
                 </span>
 
-                <div className="side-field">
-                  <span>
-                    Source
-                  </span>
-
+                <SideField label="Tool">
                   <strong>
-                    {agentSession
-                      .evidence
-                      .sourceId}
+                    {config
+                      .tool
+                      .name}
                   </strong>
-                </div>
+                </SideField>
 
-                <div className="side-field">
-                  <span>
-                    Recipient
-                  </span>
-
-                  <code>
-                    {formatAddress(
-                      agentSession
-                        .evidence
-                        .recipient
-                    )}
-                  </code>
-                </div>
-
-                <div className="side-field">
-                  <span>
-                    Signed amount
-                  </span>
-
+                <SideField label="Protocol">
                   <strong>
-                    {agentSession
-                      .evidence
-                      .amountTbnb}{" "}
-                    tBNB
+                    {config
+                      .payment
+                      .protocol}
                   </strong>
-                </div>
+                </SideField>
 
-                <div className="side-field">
-                  <span>
-                    Signature
-                  </span>
-
+                <SideField label="Network">
                   <strong>
-                    {agentSession
-                      .evidence
-                      .signatureScheme}
+                    {config.network}
                   </strong>
-                </div>
+                </SideField>
+
+                <SideField label="Payment token">
+                  <strong>
+                    {config
+                      .payment
+                      .token}
+                  </strong>
+                </SideField>
+
+                <SideField label="Price cap">
+                  <strong>
+                    {config
+                      .payment
+                      .maximum}{" "}
+                    {config
+                      .payment
+                      .token}
+                  </strong>
+                </SideField>
+
+                <SideField label="Real execution">
+                  <strong>
+                    {config
+                      .payment
+                      .realExecutionEnabled
+                      ? "ENABLED"
+                      : "DISABLED"}
+                  </strong>
+                </SideField>
               </section>
             )}
 
-            {(verification ||
-              agentSession) && (
-                <section className="side-card">
-                  <span className="panel-kicker">
-                    Field comparison
-                  </span>
+            {proposedPlan && (
+              <section className="side-card">
+                <span className="panel-kicker">
+                  Exact request
+                </span>
 
-                  {Object.entries(
-                    (
-                      verification ??
-                      agentSession
-                    )!
-                      .comparison
-                  ).map(
-                    ([
-                      key,
-                      value,
-                    ]) => (
-                      <div
-                        className="comparison-row"
-                        key={
-                          key
-                        }
-                      >
-                        <span>
-                          {key}
-                        </span>
+                <SideField label="Hash">
+                  <code>
+                    {formatHash(
+                      proposedPlan
+                        .requestHash
+                    )}
+                  </code>
+                </SideField>
 
-                        <strong
-                          className={
-                            value.matches
-                              ? "match"
-                              : "mismatch"
-                          }
-                        >
-                          {value.matches
-                            ? "MATCH"
-                            : "BREAK"}
-                        </strong>
-                      </div>
-                    )
-                  )}
-                </section>
-              )}
+                <SideField label="Tool">
+                  <strong>
+                    {proposedPlan
+                      .request
+                      .toolId}
+                  </strong>
+                </SideField>
 
-            {(
-              verification
-                ?.verification ??
-              agentSession
-                ?.verification
-            ) && (
+                <SideField label="Method">
+                  <strong>
+                    {proposedPlan
+                      .request
+                      .method}
+                  </strong>
+                </SideField>
+              </section>
+            )}
+
+            {draft && (
+              <section className="side-card">
+                <span className="panel-kicker">
+                  Signed scope
+                </span>
+
+                <SideField label="Request">
+                  <code>
+                    {formatHash(
+                      draft
+                        .requestHash
+                    )}
+                  </code>
+                </SideField>
+
+                <SideField label="Token">
+                  <strong>
+                    {draft
+                      .payment
+                      .token}
+                  </strong>
+                </SideField>
+
+                <SideField label="Recipient">
+                  <code>
+                    {formatAddress(
+                      draft
+                        .payment
+                        .recipient
+                    )}
+                  </code>
+                </SideField>
+
+                <SideField label="Maximum">
+                  <strong>
+                    {draft
+                      .payment
+                      .amount}{" "}
+                    {draft
+                      .payment
+                      .token}
+                  </strong>
+                </SideField>
+
+                <SideField label="Expiry">
+                  <strong>
+                    {formatTimestamp(
+                      draft
+                        .authorization
+                        .validUntil
+                    )}
+                  </strong>
+                </SideField>
+              </section>
+            )}
+
+            {execution?.request && (
+              <section className="side-card">
+                <span className="panel-kicker">
+                  Request integrity
+                </span>
+
+                <ComparisonRow
+                  label="Request hash"
+                  value={
+                    execution
+                      .request
+                      .matches
+                  }
+                />
+
+                {execution.paymentTerms && (
+                  <>
+                    <ComparisonRow
+                      label="Chain"
+                      value={
+                        execution
+                          .paymentTerms
+                          .sameChain
+                      }
+                    />
+
+                    <ComparisonRow
+                      label="Token"
+                      value={
+                        execution
+                          .paymentTerms
+                          .sameToken
+                      }
+                    />
+
+                    <ComparisonRow
+                      label="Recipient"
+                      value={
+                        execution
+                          .paymentTerms
+                          .sameRecipient
+                      }
+                    />
+
+                    <ComparisonRow
+                      label="Amount"
+                      value={
+                        execution
+                          .paymentTerms
+                          .sameAmount
+                      }
+                    />
+
+                    <ComparisonRow
+                      label="Credential"
+                      value={
+                        execution
+                          .paymentTerms
+                          .sameCredentialType
+                      }
+                    />
+                  </>
+                )}
+              </section>
+            )}
+
+            {execution
+              ?.verification
+              ?.findings &&
+              execution
+                .verification
+                .findings
+                .length >
+              0 && (
                 <section className="side-card findings-card">
                   <span className="panel-kicker">
-                    Findings
+                    Technical evidence
                   </span>
 
-                  {(
-                    verification
-                      ?.verification ??
-                    agentSession
-                      ?.verification
-                  )!
+                  {execution
+                    .verification
                     .findings
                     .map(
                       (
@@ -2947,41 +6784,85 @@ function WorkspacePage() {
                 </section>
               )}
 
-            {replay && (
-              <section className="side-card">
-                <span className="panel-kicker">
-                  Replay gate
-                </span>
-
-                <div className="comparison-row">
-                  <span>
-                    First use
+            {execution?.status ===
+              "STOPPED" && (
+                <section className="side-card">
+                  <span className="panel-kicker">
+                    No-payment evidence
                   </span>
 
-                  <strong>
-                    {replay
-                      .firstGate
-                      .decision}
-                  </strong>
-                </div>
+                  <SideField label="Payer token delta">
+                    <strong>
+                      {execution
+                        .payerTokenDeltaRaw ??
+                        "0"}
+                    </strong>
+                  </SideField>
 
-                <div className="comparison-row">
-                  <span>
-                    Second use
+                  <SideField label="Merchant token delta">
+                    <strong>
+                      {execution
+                        .merchantTokenDeltaRaw ??
+                        "0"}
+                    </strong>
+                  </SideField>
+
+                  <SideField label="Payment tx">
+                    <strong>
+                      none
+                    </strong>
+                  </SideField>
+                </section>
+              )}
+
+            {execution?.status ===
+              "COMPLETED" && (
+                <section className="side-card">
+                  <span className="panel-kicker">
+                    Execution evidence
                   </span>
 
-                  <strong>
-                    {replay
-                      .secondGate
-                      .decision}
-                  </strong>
-                </div>
+                  <SideField label="Signer invoked">
+                    <strong>
+                      {boolLabel(
+                        execution
+                          .audit
+                          ?.signerInvoked
+                      )}
+                    </strong>
+                  </SideField>
 
-                <p className="technical-copy">
-                  {replay.note}
-                </p>
-              </section>
-            )}
+                  <SideField label="Simulation">
+                    <strong>
+                      {boolLabel(
+                        execution
+                          .audit
+                          ?.paymentSimulationInvoked
+                      )}
+                    </strong>
+                  </SideField>
+
+                  <SideField label="Broadcast">
+                    <strong>
+                      {boolLabel(
+                        execution
+                          .audit
+                          ?.paymentBroadcast
+                      )}
+                    </strong>
+                  </SideField>
+
+                  <SideField label="Private key printed">
+                    <strong>
+                      {boolLabel(
+                        execution
+                          .audit
+                          ?.privateKeyPrinted
+                      )}
+                    </strong>
+                  </SideField>
+                </section>
+              )}
           </aside>
         </div>
       </main>
@@ -2989,13 +6870,23 @@ function WorkspacePage() {
   );
 }
 
-function App() {
-  const path =
-    window.location
-      .pathname;
+/*
+ * =======================================================
+ * ROUTING
+ * =======================================================
+ */
+
+export default function App() {
+  const normalizedPath =
+    window.location.pathname
+      .replace(
+        /\/+$/,
+        ""
+      ) ||
+    "/";
 
   if (
-    path ===
+    normalizedPath ===
     "/app"
   ) {
     return (
@@ -3004,7 +6895,7 @@ function App() {
   }
 
   if (
-    path ===
+    normalizedPath ===
     "/proof"
   ) {
     return (
@@ -3013,7 +6904,7 @@ function App() {
   }
 
   if (
-    path ===
+    normalizedPath ===
     "/docs"
   ) {
     return (
@@ -3025,5 +6916,3 @@ function App() {
     <HomePage />
   );
 }
-
-export default App;
