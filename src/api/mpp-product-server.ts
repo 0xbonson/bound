@@ -68,6 +68,22 @@ import {
 } from "../chain/transaction-intelligence.js";
 
 import {
+    normalizeUniversalTransactionInput,
+} from "../chain/universal-transaction-input.js";
+
+import {
+    fetchUniversalTransactionFacts,
+} from "../chain/universal-transaction-intelligence.js";
+
+import {
+    resolveContractIntelligence,
+} from "../chain/contract-intelligence.js";
+
+import {
+    interpretTransaction,
+} from "../chain/transaction-interpretation.js";
+
+import {
     buildTransactionAnalysisIntent,
     buildTransactionAnalysisToolRequest,
 } from "../core/intent-manifest.js";
@@ -249,6 +265,19 @@ const erc20Abi =
  * API INPUT SCHEMAS
  * =======================================================
  */
+
+const transactionInspectRequestSchema =
+    z.object({
+        input:
+            z.string()
+                .trim()
+                .min(
+                    1
+                )
+                .max(
+                    500
+                ),
+    });
 
 const planRequestSchema =
     z.object({
@@ -3333,6 +3362,195 @@ async function handleRequest(
         );
 
         return;
+    }
+
+    if (
+        request.method ===
+        "POST" &&
+        url.pathname ===
+        "/api/inspect"
+    ) {
+        const parsed =
+            transactionInspectRequestSchema
+                .parse(
+                    await readJsonBody(
+                        request
+                    )
+                );
+
+        let normalizedInput:
+            ReturnType<
+                typeof normalizeUniversalTransactionInput
+            >;
+
+        try {
+            normalizedInput =
+                normalizeUniversalTransactionInput(
+                    parsed.input
+                );
+        } catch (
+            error
+        ) {
+            sendJson(
+                request,
+                response,
+                400,
+                {
+                    error:
+                        "INVALID_TRANSACTION_INPUT",
+
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Invalid transaction input.",
+                }
+            );
+
+            return;
+        }
+
+        try {
+            const facts =
+                await fetchUniversalTransactionFacts(
+                    parsed.input
+                );
+
+            const contract =
+                facts.transaction.to
+                    ? await resolveContractIntelligence({
+                        chainId:
+                            facts.subject.chainId,
+
+                        address:
+                            facts.transaction.to,
+
+                        calldata:
+                            facts.transaction.input,
+                    })
+                    : null;
+
+            /*
+             * interpretTransaction performs the deterministic
+             * evidence upgrade internally:
+             *
+             * raw contract evidence
+             * -> protocol identity
+             * -> official protocol ABI refinement
+             * -> swap intelligence
+             * -> human-readable interpretation
+             */
+            const interpretation =
+                interpretTransaction(
+                    facts,
+                    contract
+                );
+
+            sendJson(
+                request,
+                response,
+                200,
+                {
+                    version:
+                        "bound.transaction-inspection.v2",
+
+                    input:
+                        normalizedInput,
+
+                    facts,
+
+                    interpretation,
+
+                    trust: {
+                        blockchainFacts:
+                            "deterministic",
+
+                        networkResolution:
+                            facts.evidence
+                                .networkResolution,
+
+                        verifiedAbiUsed:
+                            interpretation
+                                .evidence
+                                .verifiedAbiUsed,
+
+                        officialProtocolAbiUsed:
+                            interpretation
+                                .evidence
+                                .officialProtocolAbiUsed,
+
+                        aiUsedForFacts:
+                            false,
+
+                        aiUsedForExplanation:
+                            false,
+
+                        aiUsedForSecurityDecision:
+                            false,
+                    },
+                }
+            );
+
+            return;
+        } catch (
+            error
+        ) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Transaction inspection failed.";
+
+            let statusCode =
+                502;
+
+            let errorCode =
+                "TRANSACTION_LOOKUP_FAILED";
+
+            if (
+                message.includes(
+                    "found on multiple supported networks"
+                )
+            ) {
+                statusCode =
+                    409;
+
+                errorCode =
+                    "AMBIGUOUS_TRANSACTION_NETWORK";
+            } else if (
+                message.includes(
+                    "could not determine the transaction network"
+                )
+            ) {
+                statusCode =
+                    503;
+
+                errorCode =
+                    "NETWORK_DISCOVERY_INCONCLUSIVE";
+            } else if (
+                message.includes(
+                    "Transaction not found on the networks currently supported by BOUND."
+                )
+            ) {
+                statusCode =
+                    404;
+
+                errorCode =
+                    "TRANSACTION_NOT_FOUND";
+            }
+
+            sendJson(
+                request,
+                response,
+                statusCode,
+                {
+                    error:
+                        errorCode,
+
+                    message,
+                }
+            );
+
+            return;
+        }
     }
 
     if (
