@@ -28,7 +28,9 @@
     "bound-mpp-guard": "tsx src/admin/run-bound-mpp-guarded.ts",
     "product-api": "tsx src/api/mpp-product-server.ts",
     "tx-inspect": "tsx src/admin/inspect-transaction.ts",
-    "demo-what-changed": "tsx src/demo/what-changed-demo.ts"
+    "demo-what-changed": "tsx src/demo/what-changed-demo.ts",
+    "contract:compile": "rm -rf artifacts/contracts && mkdir -p artifacts/contracts && solcjs --bin --abi contracts/BOUNDIntentRegistry.sol -o artifacts/contracts",
+    "contract:deploy:testnet": "tsx src/admin/deploy-bound-intent-registry.ts"
   },
   "keywords": [],
   "author": "",
@@ -44,6 +46,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.3",
+    "solc": "^0.8.24",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
