@@ -6696,129 +6696,902 @@ function ProofPage() {
 function DocsPage() {
   return (
     <Shell>
-      <main className="content-page docs-page">
-        <div className="eyebrow">
-          Architecture & trust boundaries
-        </div>
+      <main className="docs-manual">
 
-        <h1>
-          What BOUND
-          <br />
-          actually verifies.
-        </h1>
+        <aside className="docs-manual-sidebar">
+          <div className="docs-manual-sidebar-title">
+            BOUND DOCS
+          </div>
 
-        <p className="lead">
-          The prototype separates AI
-          planning, user authorization,
-          deterministic verification, and
-          payment execution. Gemini helps
-          interpret the task, but it is
-          not the payment authority.
-        </p>
+          <nav>
+            <a href="#overview">
+              Overview
+            </a>
 
-        <section className="docs-grid">
-          <article>
+            <a href="#quick-start">
+              Quick start
+            </a>
+
+            <a href="#architecture">
+              Architecture
+            </a>
+
+            <a href="#lens">
+              Lens
+            </a>
+
+            <a href="#agent">
+              Agent runtime
+            </a>
+
+            <a href="#guard">
+              Guard
+            </a>
+
+            <a href="#registry">
+              Intent Registry
+            </a>
+
+            <a href="#proof">
+              Proof
+            </a>
+
+            <a href="#api">
+              API reference
+            </a>
+
+            <a href="#contract">
+              Smart contract
+            </a>
+
+            <a href="#security">
+              Security model
+            </a>
+
+            <a href="#limitations">
+              Limitations
+            </a>
+          </nav>
+        </aside>
+
+
+        <article className="docs-manual-content">
+
+          <section
+            id="overview"
+            className="docs-manual-intro"
+          >
+            <div className="eyebrow">
+              DOCUMENTATION
+            </div>
+
+            <h1>
+              BOUND Docs
+            </h1>
+
+            <p>
+              BOUND is an intent-integrity layer for
+              autonomous agents that use paid tools.
+              Agents may reason and select capabilities
+              autonomously, while paid actions remain
+              bound to an exact human-authorized request.
+            </p>
+
+            <div className="docs-manual-meta">
+              <span>
+                BSC Testnet
+              </span>
+
+              <span>
+                Chain 97
+              </span>
+
+              <span>
+                Prototype
+              </span>
+            </div>
+          </section>
+
+
+          <section
+            id="quick-start"
+            className="docs-manual-section"
+          >
+            <div className="docs-manual-section-label">
+              QUICK START
+            </div>
+
             <h2>
-              Gemini plans.
+              Basic flow
             </h2>
 
             <p>
-              Gemini converts a
-              natural-language
-              transaction-check task into
-              exact from, to, valueWei,
-              and calldata fields. Tool
-              identity, method, network,
-              and chain are pinned by the
-              host.
+              A normal BOUND session starts with a
+              transaction, then escalates only when the
+              Agent genuinely needs additional evidence.
             </p>
-          </article>
 
-          <article>
+            <ol className="docs-manual-steps">
+              <li>
+                <strong>
+                  Inspect a transaction with Lens.
+                </strong>
+
+                <span>
+                  Lens creates deterministic transaction
+                  evidence.
+                </span>
+              </li>
+
+              <li>
+                <strong>
+                  Ask Agent for deeper analysis.
+                </strong>
+
+                <span>
+                  Agent reasons over existing evidence and
+                  may execute registered free tools.
+                </span>
+              </li>
+
+              <li>
+                <strong>
+                  Review paid intent only if required.
+                </strong>
+
+                <span>
+                  If Agent selects a paid capability,
+                  execution pauses at Guard.
+                </span>
+              </li>
+
+              <li>
+                <strong>
+                  Human authorizes the exact request.
+                </strong>
+
+                <span>
+                  The browser wallet signs the EIP-712
+                  authorization and may anchor the intent
+                  on BSC Testnet.
+                </span>
+              </li>
+
+              <li>
+                <strong>
+                  Guard recomputes before payment.
+                </strong>
+
+                <span>
+                  Exact intent may continue. Changed intent
+                  is stopped before payment.
+                </span>
+              </li>
+            </ol>
+
+
+            <div className="docs-code">
+              <div className="docs-code-head">
+                POST /api/inspect
+              </div>
+
+              <pre>
+{`{
+  "input": "0xc26914982ccea9c13aee846880a904136f145f8699661c9d1f0db96138aef825"
+}`}
+              </pre>
+            </div>
+          </section>
+
+
+          <section
+            id="architecture"
+            className="docs-manual-section"
+          >
+            <div className="docs-manual-section-label">
+              ARCHITECTURE
+            </div>
+
             <h2>
-              The wallet authorizes.
+              Request path
+            </h2>
+
+            <div className="docs-manual-flow">
+              <span>
+                LENS
+              </span>
+
+              <i>
+                →
+              </i>
+
+              <span>
+                AGENT
+              </span>
+
+              <i>
+                →
+              </i>
+
+              <span>
+                GUARD
+              </span>
+
+              <i>
+                →
+              </i>
+
+              <span>
+                INTENT REGISTRY
+              </span>
+
+              <i>
+                →
+              </i>
+
+              <span>
+                PAYMENT BOUNDARY
+              </span>
+            </div>
+
+            <p>
+              The AI reasoning layer never becomes the
+              payment authority. The deterministic boundary
+              is evaluated after reasoning and before the
+              protected payer can proceed.
+            </p>
+          </section>
+
+
+          <section
+            id="lens"
+            className="docs-manual-section"
+          >
+            <div className="docs-manual-section-label">
+              LENS
+            </div>
+
+            <h2>
+              Deterministic transaction evidence
             </h2>
 
             <p>
-              The browser wallet signs an
-              EIP-712 authorization that
-              binds the exact request hash
-              to BSC Testnet and the
-              quoted MPP payment terms.
+              Lens normalizes a transaction hash or
+              supported explorer URL, resolves the network,
+              reads transaction and receipt data, decodes
+              known contract behavior where evidence exists,
+              and produces grounded facts for downstream
+              reasoning.
             </p>
-          </article>
 
-          <article>
+            <div className="docs-manual-note">
+              Lens does not claim that a transaction is
+              universally safe or unsafe.
+            </div>
+          </section>
+
+
+          <section
+            id="agent"
+            className="docs-manual-section"
+          >
+            <div className="docs-manual-section-label">
+              AGENT RUNTIME
+            </div>
+
             <h2>
-              BOUND verifies.
+              Autonomous reasoning with bounded tools
             </h2>
 
             <p>
-              Immediately before payment,
-              BOUND recomputes the actual
-              tool request and verifies it
-              against the signed
-              authorization and current
-              payment challenge.
+              BOUND Agent follows a bounded loop:
+              perceive evidence, reason, choose a registered
+              action, observe the result, and reason again.
             </p>
-          </article>
 
-          <article>
+            <div className="docs-manual-table">
+              <div>
+                <span>
+                  ANSWER_NOW
+                </span>
+
+                <strong>
+                  Existing evidence is sufficient
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  USE_FREE_TOOL
+                </span>
+
+                <strong>
+                  Execute registered free capability
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  REQUEST_PAID_TOOL
+                </span>
+
+                <strong>
+                  Pause at Guard for human authorization
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  NO_SUITABLE_TOOL
+                </span>
+
+                <strong>
+                  Stop without inventing a capability
+                </strong>
+              </div>
+            </div>
+
+            <p>
+              Autonomous does not mean autonomously
+              spending money.
+            </p>
+          </section>
+
+
+          <section
+            id="guard"
+            className="docs-manual-section"
+          >
+            <div className="docs-manual-section-label">
+              GUARD
+            </div>
+
             <h2>
-              The payer is downstream.
+              Exact-request authorization
             </h2>
 
             <p>
-              The protected payment wallet
-              stays server-side and is not
-              exposed to Gemini or the
-              browser. Payment execution
-              sits after the deterministic
-              gate.
+              Guard freezes the concrete paid-tool request,
+              binds it to the human authorization, and
+              recomputes the actual request immediately
+              before the paid path can continue.
             </p>
-          </article>
 
-          <article>
+            <div className="docs-manual-compare">
+              <div>
+                <span>
+                  SAME
+                </span>
+
+                <strong>
+                  ALLOW
+                </strong>
+
+                <p>
+                  Transaction, network, tool request, and
+                  authorized payment boundary still match.
+                </p>
+              </div>
+
+              <div>
+                <span>
+                  CHANGED
+                </span>
+
+                <strong>
+                  BLOCK
+                </strong>
+
+                <p>
+                  A changed request requires a new human
+                  authorization.
+                </p>
+              </div>
+            </div>
+          </section>
+
+
+          <section
+            id="registry"
+            className="docs-manual-section"
+          >
+            <div className="docs-manual-section-label">
+              INTENT REGISTRY
+            </div>
+
             <h2>
-              MPP settles.
+              On-chain intent commitment
             </h2>
 
             <p>
-              The paid tool uses a real
-              HTTP 402 challenge,
-              TEST_USDT on BSC Testnet,
-              hash credentials with payer
-              provenance, and an MPP
-              Payment-Receipt.
+              BOUNDIntentRegistry records the active intent
+              commitment under the human authorizer on BSC
+              Testnet. The commitment binds the authorized
+              request hash and payment boundary.
             </p>
-          </article>
 
-          <article>
+            <div className="docs-manual-table">
+              <div>
+                <span>
+                  CONTRACT
+                </span>
+
+                <strong>
+                  BOUNDIntentRegistry
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  NETWORK
+                </span>
+
+                <strong>
+                  BSC Testnet · 97
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  CUSTODY
+                </span>
+
+                <strong>
+                  None
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  PRIVILEGED ADMIN
+                </span>
+
+                <strong>
+                  None
+                </strong>
+              </div>
+            </div>
+          </section>
+
+
+          <section
+            id="proof"
+            className="docs-manual-section"
+          >
+            <div className="docs-manual-section-label">
+              PROOF
+            </div>
+
             <h2>
-              Scope is explicit.
+              Durable runtime activity
             </h2>
 
             <p>
-              This build demonstrates one
-              paid transaction-check tool
-              on BSC Testnet. It does not
-              claim to stop every form of
-              prompt injection or make a
-              universal transaction-safety
-              judgment.
+              BOUND records safe runtime metadata for
+              significant product events. The Proof page
+              reads this durable activity history rather
+              than presenting static marketing evidence.
             </p>
-          </article>
-        </section>
+
+            <div className="docs-manual-tags">
+              <span>
+                ANALYZED
+              </span>
+
+              <span>
+                AGENT_RUN
+              </span>
+
+              <span>
+                AUTHORIZED
+              </span>
+
+              <span>
+                ANCHORED
+              </span>
+
+              <span>
+                ALLOWED
+              </span>
+
+              <span>
+                BLOCKED
+              </span>
+            </div>
+          </section>
+
+
+          <section
+            id="api"
+            className="docs-manual-section"
+          >
+            <div className="docs-manual-section-label">
+              API REFERENCE
+            </div>
+
+            <h2>
+              Product API
+            </h2>
+
+            <div className="docs-api-table">
+
+              <div>
+                <code>
+                  GET
+                </code>
+
+                <strong>
+                  /health
+                </strong>
+
+                <span>
+                  Product API health
+                </span>
+              </div>
+
+              <div>
+                <code>
+                  GET
+                </code>
+
+                <strong>
+                  /api/config
+                </strong>
+
+                <span>
+                  Public runtime configuration
+                </span>
+              </div>
+
+              <div>
+                <code>
+                  POST
+                </code>
+
+                <strong>
+                  /api/inspect
+                </strong>
+
+                <span>
+                  Deterministic Lens inspection
+                </span>
+              </div>
+
+              <div>
+                <code>
+                  POST
+                </code>
+
+                <strong>
+                  /api/agent
+                </strong>
+
+                <span>
+                  Run bounded Agent reasoning
+                </span>
+              </div>
+
+              <div>
+                <code>
+                  POST
+                </code>
+
+                <strong>
+                  /api/authorization/prepare
+                </strong>
+
+                <span>
+                  Prepare exact human authorization
+                </span>
+              </div>
+
+              <div>
+                <code>
+                  POST
+                </code>
+
+                <strong>
+                  /api/authorization/confirm
+                </strong>
+
+                <span>
+                  Confirm signed authorization
+                </span>
+              </div>
+
+              <div>
+                <code>
+                  POST
+                </code>
+
+                <strong>
+                  /api/authorization/registry/prepare
+                </strong>
+
+                <span>
+                  Prepare on-chain intent commitment
+                </span>
+              </div>
+
+              <div>
+                <code>
+                  POST
+                </code>
+
+                <strong>
+                  /api/authorization/registry/verify
+                </strong>
+
+                <span>
+                  Verify anchor transaction and active intent
+                </span>
+              </div>
+
+              <div>
+                <code>
+                  POST
+                </code>
+
+                <strong>
+                  /api/execute
+                </strong>
+
+                <span>
+                  Evaluate the final Guard boundary
+                </span>
+              </div>
+
+              <div>
+                <code>
+                  GET
+                </code>
+
+                <strong>
+                  /api/history
+                </strong>
+
+                <span>
+                  Read durable Proof activity
+                </span>
+              </div>
+
+            </div>
+
+
+            <div className="docs-code">
+              <div className="docs-code-head">
+                GET /api/history
+              </div>
+
+              <pre>
+{`{
+  "version": "bound.activity-history.v1",
+  "events": [...]
+}`}
+              </pre>
+            </div>
+          </section>
+
+
+          <section
+            id="contract"
+            className="docs-manual-section"
+          >
+            <div className="docs-manual-section-label">
+              SMART CONTRACT
+            </div>
+
+            <h2>
+              BOUNDIntentRegistry
+            </h2>
+
+            <p>
+              The registry is ownerless, non-custodial,
+              and does not execute tool payments. Intent
+              records are scoped to the address committing
+              them.
+            </p>
+
+            <div className="docs-manual-table">
+              <div>
+                <span>
+                  commitIntent
+                </span>
+
+                <strong>
+                  Create or replace active intent
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  revokeIntent
+                </span>
+
+                <strong>
+                  Revoke intent
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  getIntent
+                </span>
+
+                <strong>
+                  Read committed intent
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  isAuthorized
+                </span>
+
+                <strong>
+                  Verify current authorization state
+                </strong>
+              </div>
+            </div>
+          </section>
+
+
+          <section
+            id="security"
+            className="docs-manual-section"
+          >
+            <div className="docs-manual-section-label">
+              SECURITY MODEL
+            </div>
+
+            <h2>
+              Trust boundaries
+            </h2>
+
+            <div className="docs-security-table">
+
+              <div>
+                <span>
+                  AGENT
+                </span>
+
+                <strong>
+                  May reason and choose registered tools
+                </strong>
+
+                <small>
+                  No payment authority
+                </small>
+              </div>
+
+              <div>
+                <span>
+                  HUMAN
+                </span>
+
+                <strong>
+                  Approves exact paid intent
+                </strong>
+
+                <small>
+                  Authorization authority
+                </small>
+              </div>
+
+              <div>
+                <span>
+                  BROWSER WALLET
+                </span>
+
+                <strong>
+                  Signs authorization and anchor transaction
+                </strong>
+
+                <small>
+                  Signing mechanism
+                </small>
+              </div>
+
+              <div>
+                <span>
+                  REGISTRY
+                </span>
+
+                <strong>
+                  Stores active intent commitment
+                </strong>
+
+                <small>
+                  No custody
+                </small>
+              </div>
+
+              <div>
+                <span>
+                  GUARD
+                </span>
+
+                <strong>
+                  Recomputes and compares exact request
+                </strong>
+
+                <small>
+                  Deterministic enforcement
+                </small>
+              </div>
+
+              <div>
+                <span>
+                  SERVER PAYER
+                </span>
+
+                <strong>
+                  Downstream payment execution only
+                </strong>
+
+                <small>
+                  Not exposed to Agent or browser
+                </small>
+              </div>
+
+            </div>
+          </section>
+
+
+          <section
+            id="limitations"
+            className="docs-manual-section"
+          >
+            <div className="docs-manual-section-label">
+              LIMITATIONS
+            </div>
+
+            <h2>
+              Prototype scope
+            </h2>
+
+            <ul className="docs-manual-limitations">
+              <li>
+                Current guarded paid capability is
+                transaction analysis on BSC Testnet.
+              </li>
+
+              <li>
+                The live Guard demo keeps real payment
+                disabled.
+              </li>
+
+              <li>
+                BOUND does not claim universal scam
+                detection or transaction-safety judgment.
+              </li>
+
+              <li>
+                BOUND does not claim to stop every form
+                of prompt injection.
+              </li>
+
+              <li>
+                Historical subject transactions are
+                analyzed evidence, not transactions
+                recreated or replayed by BOUND.
+              </li>
+            </ul>
+          </section>
+
+        </article>
       </main>
     </Shell>
   );
 }
+
 
 /*
  * =======================================================
  * WORKSPACE
  * =======================================================
  */
+
 
 function WorkspacePage() {
   const [
