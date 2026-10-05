@@ -1,0 +1,12 @@
+{
+  "contract": "BOUNDIntentRegistry",
+  "network": "BNB Smart Chain Testnet",
+  "chainId": 97,
+  "address": "0xc85EdD8C5084195c4781dEE49611989127cAdB6b",
+  "deploymentTransaction": "0x224a34f3765d29a3f79bb509660a563aa2e91f7b25fffb421dac74367c41375f",
+  "blockNumber": "134956704",
+  "source": "contracts/BOUNDIntentRegistry.sol",
+  "purpose": "On-chain commitment registry for exact human-authorized paid AI-agent requests.",
+  "holdsFunds": false,
+  "executesPayments": false
+}
