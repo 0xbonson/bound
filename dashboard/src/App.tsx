@@ -4737,7 +4737,7 @@ function HomePage() {
                 <div className="lens-agent-review">
                   <div>
                     <span>
-                      TRANSACTION
+                      HISTORICAL AUTHORIZED SUBJECT
                     </span>
 
                     <code>
@@ -5347,99 +5347,500 @@ function HomePage() {
 function ProofPage() {
   return (
     <Shell>
-      <main className="content-page">
-        <div className="eyebrow">
-          Verified testnet evidence
+      <main className="proof-v2">
+
+        {/* HERO */}
+        <section className="proof-v2-hero">
+          <div>
+            <div className="eyebrow">
+              VERIFIED TESTNET EVIDENCE
+            </div>
+
+            <h1>
+              One request paid.
+              <br />
+              One mutation stopped.
+            </h1>
+
+            <p>
+              This page shows a previously recorded
+              BSC Testnet verification run. It is
+              historical evidence, not the transaction
+              currently being analyzed in Workspace.
+            </p>
+          </div>
+
+          <div
+            className="proof-v2-seal"
+            aria-hidden="true"
+          >
+            <span>
+              REQUEST
+            </span>
+
+            <strong>
+              ≡
+            </strong>
+
+            <span>
+              INTENT
+            </span>
+          </div>
+        </section>
+
+
+        {/* SUMMARY */}
+        <div className="proof-history-note">
+          <span>
+            HISTORICAL PROOF
+          </span>
+
+          <p>
+            Recorded BSC Testnet evidence.
+            For a live transaction, use Workspace.
+          </p>
+
+          <a href="/app">
+            Open live Workspace →
+          </a>
         </div>
 
-        <h1>
-          One request paid.
-          <br />
-          One mutation stopped.
-        </h1>
+        <section className="proof-v2-summary">
+          <article>
+            <span>
+              GUARDED TOOL COST
+            </span>
 
-        <p className="lead">
-          The exact-request flow completed
-          a real BNB MPP payment on BNB
-          Smart Chain Testnet. In the
-          controlled mutation flow, the
-          payment terms remained unchanged
-          while the paid tool request
-          changed, and BOUND stopped before
-          payment.
-        </p>
-
-        <section className="proof-card">
-          <Field label="Guarded payment">
             <strong>
               0.001 TEST_USDT
             </strong>
-          </Field>
+          </article>
 
-          <Field label="Network">
+          <article>
+            <span>
+              NETWORK
+            </span>
+
             <strong>
-              BNB Smart Chain Testnet · 97
+              BSC Testnet · 97
             </strong>
-          </Field>
+          </article>
 
-          <Field label="Evidence">
-            <strong>
-              Historical successful BNB MPP payment
+          <article>
+            <span>
+              EXACT PATH
+            </span>
+
+            <strong className="allow">
+              ✓ PAID
             </strong>
-          </Field>
+          </article>
 
-          <Field label="Confirmed payment transaction">
-            <code>
-              {GUARDED_PAYMENT_TX}
-            </code>
-          </Field>
+          <article>
+            <span>
+              MUTATED PATH
+            </span>
 
-          <a
-            className="button primary"
-            href={`${BSC_TESTNET_EXPLORER}/tx/${GUARDED_PAYMENT_TX}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Inspect on BscScan
-          </a>
+            <strong className="block">
+              × STOPPED
+            </strong>
+          </article>
         </section>
 
-        <section className="proof-card">
-          <Field label="Controlled mutation">
-            <strong>
-              Exact tool argument changed
-            </strong>
-          </Field>
 
-          <Field label="Authorized transaction">
-            <code>
-              {SAMPLE_TRANSACTION_HASH}
-            </code>
-          </Field>
+        {/* IMPORTANT DISTINCTION */}
+        <section className="proof-v2-distinction proof-v2-reveal">
+          <div className="proof-v2-index">
+            01 · TWO DIFFERENT TRANSACTIONS
+          </div>
 
-          <Field label="Controlled mutation">
-            <code>
-              {CONTROLLED_TAMPER_TRANSACTION_HASH}
-            </code>
-          </Field>
+          <div className="proof-v2-heading">
+            <h2>
+              Analyze one transaction.
+              <br />
+              Pay for a service.
+            </h2>
 
-          <Field label="Payment terms">
-            <strong>
-              Same chain · token ·
-              recipient · amount
-            </strong>
-          </Field>
+            <p>
+              The transaction under analysis is only
+              the subject. BOUND does not replay it,
+              copy-trade it, or act as its original
+              sender. The guarded payment is a separate
+              purchase of the analysis service.
+            </p>
+          </div>
 
-          <Field label="Result">
-            <strong>
-              No payment broadcast
-            </strong>
-          </Field>
+          <div className="proof-v2-distinction-grid">
+            <article>
+              <span>
+                HISTORICAL SUBJECT
+              </span>
+
+              <code>
+                {SAMPLE_TRANSACTION_HASH}
+              </code>
+
+              <strong>
+                Recorded transaction used in the proof run
+              </strong>
+            </article>
+
+            <div className="proof-v2-not-equal">
+              ≠
+            </div>
+
+            <article>
+              <span>
+                HISTORICAL TOOL PAYMENT
+              </span>
+
+              <code>
+                {GUARDED_PAYMENT_TX}
+              </code>
+
+              <strong>
+                Recorded BSC Testnet payment evidence
+              </strong>
+            </article>
+          </div>
         </section>
+
+
+        {/* REQUEST LINEAGE */}
+        <section className="proof-v2-lineage proof-v2-reveal">
+          <div className="proof-v2-index">
+            02 · EXACT REQUEST LINEAGE
+          </div>
+
+          <div className="proof-v2-heading">
+            <h2>
+              Follow the intent
+              <br />
+              to the boundary.
+            </h2>
+
+            <p>
+              BOUND does not authorize an abstract
+              Agent. It binds a concrete paid-tool
+              request, then verifies that exact request
+              again immediately before payment.
+            </p>
+          </div>
+
+          <div className="proof-v2-flow">
+            <article>
+              <span>
+                01
+              </span>
+
+              <small>
+                SUBJECT
+              </small>
+
+              <strong>
+                Transaction selected
+              </strong>
+            </article>
+
+            <i>
+              →
+            </i>
+
+            <article>
+              <span>
+                02
+              </span>
+
+              <small>
+                TOOL REQUEST
+              </small>
+
+              <strong>
+                Transaction Analysis
+              </strong>
+            </article>
+
+            <i>
+              →
+            </i>
+
+            <article>
+              <span>
+                03
+              </span>
+
+              <small>
+                AUTHORIZATION
+              </small>
+
+              <strong>
+                Exact intent bound
+              </strong>
+            </article>
+
+            <i>
+              →
+            </i>
+
+            <article className="boundary">
+              <span>
+                04
+              </span>
+
+              <small>
+                PAYMENT BOUNDARY
+              </small>
+
+              <strong>
+                Recompute + compare
+              </strong>
+            </article>
+          </div>
+        </section>
+
+
+        {/* TWO PATHS */}
+        <section className="proof-v2-paths proof-v2-reveal">
+          <div className="proof-v2-index">
+            03 · SAME TERMS, TWO OUTCOMES
+          </div>
+
+          <div className="proof-v2-heading">
+            <h2>
+              Matching intent passes.
+              <br />
+              Mutation stops.
+            </h2>
+
+            <p>
+              Chain, payment token, recipient,
+              and amount can remain unchanged.
+              Changing the exact tool argument is
+              still a different intent.
+            </p>
+          </div>
+
+          <div className="proof-v2-path-grid">
+
+            {/* EXACT */}
+            <article className="proof-path allow">
+              <div className="proof-path-head">
+                <span>
+                  EXACT REQUEST
+                </span>
+
+                <strong>
+                  ✓ ALLOW
+                </strong>
+              </div>
+
+              <div className="proof-path-field">
+                <span>
+                  TRANSACTION
+                </span>
+
+                <code>
+                  {SAMPLE_TRANSACTION_HASH}
+                </code>
+              </div>
+
+              <div className="proof-path-field">
+                <span>
+                  PAYMENT TERMS
+                </span>
+
+                <strong>
+                  Chain · token · recipient · amount
+                </strong>
+              </div>
+
+              <div className="proof-path-arrow">
+                ↓
+              </div>
+
+              <div className="proof-path-result">
+                <span>
+                  RESULT
+                </span>
+
+                <strong>
+                  Historical BSC Testnet payment completed
+                </strong>
+
+                <code>
+                  {GUARDED_PAYMENT_TX}
+                </code>
+              </div>
+
+              <a
+                className="button primary"
+                href={`${BSC_TESTNET_EXPLORER}/tx/${GUARDED_PAYMENT_TX}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Inspect on BscScan
+              </a>
+            </article>
+
+
+            {/* MUTATED */}
+            <article className="proof-path block">
+              <div className="proof-path-head">
+                <span>
+                  MUTATED REQUEST
+                </span>
+
+                <strong>
+                  × BLOCK
+                </strong>
+              </div>
+
+              <div className="proof-path-field">
+                <span>
+                  HISTORICAL AUTHORIZED SUBJECT
+                </span>
+
+                <code>
+                  {SAMPLE_TRANSACTION_HASH}
+                </code>
+              </div>
+
+              <div className="proof-path-field changed">
+                <span>
+                  CONTROLLED MUTATION INPUT
+                </span>
+
+                <code>
+                  {CONTROLLED_TAMPER_TRANSACTION_HASH}
+                </code>
+
+                <small>
+                  Synthetic mutation used only to test the boundary
+                </small>
+              </div>
+
+              <div className="proof-path-field">
+                <span>
+                  PAYMENT TERMS
+                </span>
+
+                <strong>
+                  Same chain · token · recipient · amount
+                </strong>
+              </div>
+
+              <div className="proof-path-arrow">
+                ↓
+              </div>
+
+              <div className="proof-path-result">
+                <span>
+                  RESULT
+                </span>
+
+                <strong>
+                  No payment broadcast
+                </strong>
+
+                <small>
+                  Mutation stopped before payment
+                </small>
+              </div>
+            </article>
+
+          </div>
+        </section>
+
+
+        {/* KILLER POINT */}
+        <section className="proof-v2-killer proof-v2-reveal">
+          <div>
+            <div className="proof-v2-index">
+              04 · WHY THIS MATTERS
+            </div>
+
+            <h2>
+              Same price
+              <br />
+              does not mean
+              <br />
+              same intent.
+            </h2>
+          </div>
+
+          <div className="proof-v2-killer-copy">
+            <p>
+              Traditional payment controls can see
+              the merchant, token, chain, and amount.
+              BOUND also binds what the Agent was
+              actually asking the tool to do.
+            </p>
+
+            <div className="proof-v2-equation">
+              <span>
+                PAYMENT TERMS
+              </span>
+
+              <b>
+                +
+              </b>
+
+              <span>
+                EXACT TOOL INTENT
+              </span>
+
+              <b>
+                =
+              </b>
+
+              <strong>
+                BOUND
+              </strong>
+            </div>
+          </div>
+        </section>
+
+
+        {/* CTA */}
+        <section className="proof-v2-cta proof-v2-reveal">
+          <div className="proof-v2-cta-mark">
+            B
+          </div>
+
+          <div>
+            <div className="eyebrow">
+              VERIFY BEFORE MONEY MOVES
+            </div>
+
+            <h2>
+              See the boundary
+              <br />
+              in the real product.
+            </h2>
+
+            <div className="home-actions">
+              <a
+                className="button primary"
+                href="/app"
+              >
+                Open Workspace →
+              </a>
+
+              <a
+                className="button ghost"
+                href="/docs"
+              >
+                Read architecture
+              </a>
+            </div>
+          </div>
+        </section>
+
       </main>
     </Shell>
   );
 }
+
 
 /*
  * =======================================================
