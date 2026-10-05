@@ -110,6 +110,13 @@ import {
 } from "../core/guard-handoff.js";
 
 import {
+    BOUND_INTENT_REGISTRY_ABI,
+    BOUND_INTENT_REGISTRY_ADDRESS,
+    BOUND_INTENT_REGISTRY_CHAIN_ID,
+    buildBoundIntentRegistryCommit,
+} from "../core/intent-registry.js";
+
+import {
     MPP_REQUEST_AUTHORIZATION_VERSION,
     buildMppRequestAuthorizationTypedData,
     verifyMppRequestBoundPayment,
@@ -396,6 +403,26 @@ const confirmAuthorizationRequestSchema =
             z.string()
                 .regex(
                     /^0x[0-9a-fA-F]{130}$/
+                ),
+    });
+
+const prepareRegistryRequestSchema =
+    z.object({
+        authorizationId:
+            z.string()
+                .uuid(),
+    });
+
+const verifyRegistryRequestSchema =
+    z.object({
+        authorizationId:
+            z.string()
+                .uuid(),
+
+        transactionHash:
+            z.string()
+                .regex(
+                    /^0x[0-9a-fA-F]{64}$/
                 ),
     });
 
@@ -2197,6 +2224,322 @@ async function confirmAuthorization(
 
 /*
  * =======================================================
+ * ON-CHAIN INTENT REGISTRY
+ * =======================================================
+ *
+ * The human wallet remains the authorizer.
+ *
+ * The server only:
+ * - derives the deterministic intentId,
+ * - encodes the exact commitIntent calldata,
+ * - verifies the resulting transaction and contract state.
+ *
+ * The server never signs this registry transaction.
+ */
+
+function buildRegistryCommitForAuthorization(
+    record:
+        ConfirmedAuthorizationRecord
+) {
+    return buildBoundIntentRegistryCommit({
+        authorizationId:
+            record.authorization.authorizationId,
+
+        authorizer:
+            record.expectedSigner,
+
+        requestHash:
+            record.requestHash,
+
+        paymentToken:
+            record.authorization.paymentToken,
+
+        paymentRecipient:
+            record.authorization.paymentRecipient,
+
+        maxAmountRaw:
+            record.authorization.maxAmountRaw,
+
+        validUntil:
+            record.authorization.validUntil,
+    });
+}
+
+function prepareRegistryAnchor(
+    authorizationId:
+        string
+) {
+    const record =
+        getConfirmedAuthorization(
+            authorizationId
+        );
+
+    if (
+        record.authorization
+            .validUntil <=
+        Date.now()
+    ) {
+        throw new HttpError(
+            410,
+            "AUTHORIZATION_EXPIRED",
+            "The signed authorization expired before it could be anchored."
+        );
+    }
+
+    const commit =
+        buildRegistryCommitForAuthorization(
+            record
+        );
+
+    return {
+        authorizationId:
+            record.id,
+
+        chainId:
+            BOUND_INTENT_REGISTRY_CHAIN_ID,
+
+        network:
+            "BNB Smart Chain Testnet",
+
+        contract:
+            BOUND_INTENT_REGISTRY_ADDRESS,
+
+        from:
+            commit.from,
+
+        to:
+            commit.contract,
+
+        data:
+            commit.data,
+
+        intentId:
+            commit.intentId,
+
+        requestHash:
+            commit.requestHash,
+
+        paymentToken:
+            commit.paymentToken,
+
+        paymentRecipient:
+            commit.paymentRecipient,
+
+        maxAmountRaw:
+            commit.maxAmountRaw,
+
+        expiresAt:
+            commit.expiresAt,
+
+        note:
+            "This transaction anchors the exact human-authorized intent. It does not send the paid-tool payment.",
+    };
+}
+
+async function verifyRegistryAnchor(
+    authorizationId:
+        string,
+
+    transactionHash:
+        string
+) {
+    const record =
+        getConfirmedAuthorization(
+            authorizationId
+        );
+
+    const commit =
+        buildRegistryCommitForAuthorization(
+            record
+        );
+
+    const hash =
+        transactionHash as Hex;
+
+    const receipt =
+        await publicClient
+            .waitForTransactionReceipt({
+                hash,
+                confirmations:
+                    1,
+                timeout:
+                    60_000,
+            });
+
+    if (
+        receipt.status !==
+        "success"
+    ) {
+        throw new HttpError(
+            400,
+            "REGISTRY_TRANSACTION_FAILED",
+            "The BOUND intent-registry transaction did not succeed."
+        );
+    }
+
+    const transaction =
+        await publicClient
+            .getTransaction({
+                hash,
+            });
+
+    if (
+        getAddress(
+            transaction.from
+        ) !==
+        record.expectedSigner
+    ) {
+        throw new HttpError(
+            400,
+            "REGISTRY_WRONG_AUTHORIZER",
+            "The registry transaction was not sent by the human wallet that signed the authorization."
+        );
+    }
+
+    if (
+        !transaction.to ||
+        getAddress(
+            transaction.to
+        ) !==
+        BOUND_INTENT_REGISTRY_ADDRESS
+    ) {
+        throw new HttpError(
+            400,
+            "REGISTRY_WRONG_CONTRACT",
+            "The registry transaction was not sent to the deployed BOUNDIntentRegistry."
+        );
+    }
+
+    if (
+        transaction.input
+            .toLowerCase() !==
+        commit.data
+            .toLowerCase()
+    ) {
+        throw new HttpError(
+            400,
+            "REGISTRY_CALLDATA_MISMATCH",
+            "The on-chain commitment does not match the exact authorization BOUND prepared."
+        );
+    }
+
+    const authorized =
+        await publicClient
+            .readContract({
+                address:
+                    BOUND_INTENT_REGISTRY_ADDRESS,
+
+                abi:
+                    BOUND_INTENT_REGISTRY_ABI,
+
+                functionName:
+                    "isAuthorized",
+
+                args: [
+                    commit.intentId,
+                    record.expectedSigner,
+                    record.requestHash,
+                    commit.paymentToken,
+                    commit.paymentRecipient,
+                    BigInt(
+                        commit.maxAmountRaw
+                    ),
+                ],
+            });
+
+    if (
+        !authorized
+    ) {
+        throw new HttpError(
+            409,
+            "REGISTRY_INTENT_NOT_ACTIVE",
+            "The on-chain BOUND intent does not currently authorize the signed request boundary."
+        );
+    }
+
+    return {
+        anchored:
+            true,
+
+        authorizationId:
+            record.id,
+
+        signer:
+            record.expectedSigner,
+
+        chainId:
+            BOUND_INTENT_REGISTRY_CHAIN_ID,
+
+        contract:
+            BOUND_INTENT_REGISTRY_ADDRESS,
+
+        intentId:
+            commit.intentId,
+
+        requestHash:
+            record.requestHash,
+
+        transactionHash:
+            hash,
+
+        blockNumber:
+            receipt.blockNumber
+                .toString(),
+
+        paymentSent:
+            false,
+
+        message:
+            "The human-authorized paid intent is anchored on BSC Testnet and matches BOUND's exact request boundary.",
+    };
+}
+
+async function assertActiveRegistryIntent(
+    record:
+        ConfirmedAuthorizationRecord
+) {
+    const commit =
+        buildRegistryCommitForAuthorization(
+            record
+        );
+
+    const active =
+        await publicClient
+            .readContract({
+                address:
+                    BOUND_INTENT_REGISTRY_ADDRESS,
+
+                abi:
+                    BOUND_INTENT_REGISTRY_ABI,
+
+                functionName:
+                    "isAuthorized",
+
+                args: [
+                    commit.intentId,
+                    record.expectedSigner,
+                    record.requestHash,
+                    commit.paymentToken,
+                    commit.paymentRecipient,
+                    BigInt(
+                        commit.maxAmountRaw
+                    ),
+                ],
+            });
+
+    if (
+        !active
+    ) {
+        throw new HttpError(
+            409,
+            "REGISTRY_ANCHOR_REQUIRED",
+            "The exact human authorization is not active in BOUNDIntentRegistry. Anchor it on BSC Testnet before continuing."
+        );
+    }
+}
+
+/*
+ * =======================================================
  * PAYER KEY
  * =======================================================
  */
@@ -2386,6 +2729,17 @@ async function executeAuthorization(
             "This authorization is already being executed."
         );
     }
+
+    /*
+     * ON-CHAIN HUMAN INTENT GATE.
+     *
+     * Read BOUNDIntentRegistry again at execution time.
+     * Missing, expired, revoked, or altered commitments stop
+     * the flow before the protected payment path.
+     */
+    await assertActiveRegistryIntent(
+        record
+    );
 
     const actualRequest =
         scenario ===
@@ -4130,6 +4484,65 @@ async function handleRequest(
             await confirmAuthorization(
                 parsed.authorizationId,
                 parsed.signature
+            );
+
+        sendJson(
+            request,
+            response,
+            200,
+            result
+        );
+
+        return;
+    }
+
+    if (
+        request.method ===
+        "POST" &&
+        url.pathname ===
+        "/api/authorization/registry/prepare"
+    ) {
+        const parsed =
+            prepareRegistryRequestSchema
+                .parse(
+                    await readJsonBody(
+                        request
+                    )
+                );
+
+        const result =
+            prepareRegistryAnchor(
+                parsed.authorizationId
+            );
+
+        sendJson(
+            request,
+            response,
+            200,
+            result
+        );
+
+        return;
+    }
+
+    if (
+        request.method ===
+        "POST" &&
+        url.pathname ===
+        "/api/authorization/registry/verify"
+    ) {
+        const parsed =
+            verifyRegistryRequestSchema
+                .parse(
+                    await readJsonBody(
+                        request
+                    )
+                );
+
+        const result =
+            await verifyRegistryAnchor(
+                parsed.authorizationId,
+                parsed.transactionHash
             );
 
         sendJson(

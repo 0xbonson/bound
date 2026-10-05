@@ -150,6 +150,37 @@ type ConfirmedAuthorization = {
   executionState: string;
 };
 
+type RegistryPrepareResponse = {
+  authorizationId: string;
+  chainId: number;
+  network: string;
+  contract: string;
+  from: string;
+  to: string;
+  data: string;
+  intentId: string;
+  requestHash: string;
+  paymentToken: string;
+  paymentRecipient: string;
+  maxAmountRaw: string;
+  expiresAt: string;
+  note: string;
+};
+
+type RegistryAnchorVerification = {
+  anchored: true;
+  authorizationId: string;
+  signer: string;
+  chainId: number;
+  contract: string;
+  intentId: string;
+  requestHash: string;
+  transactionHash: string;
+  blockNumber: string;
+  paymentSent: false;
+  message: string;
+};
+
 type VerificationFinding = {
   code: string;
   message: string;
@@ -2029,6 +2060,17 @@ function HomePage() {
     );
 
   const [
+    agentRegistryAnchor,
+    setAgentRegistryAnchor,
+  ] =
+    useState<
+      RegistryAnchorVerification |
+      null
+    >(
+      null
+    );
+
+  const [
     agentScenario,
     setAgentScenario,
   ] =
@@ -2822,6 +2864,10 @@ function HomePage() {
         null
       );
 
+      setAgentRegistryAnchor(
+        null
+      );
+
       setAgentExecution(
         null
       );
@@ -3030,6 +3076,10 @@ function HomePage() {
       null
     );
 
+    setAgentRegistryAnchor(
+      null
+    );
+
     setAgentExecution(
       null
     );
@@ -3101,6 +3151,10 @@ function HomePage() {
     );
 
     setAgentAuthorization(
+      null
+    );
+
+    setAgentRegistryAnchor(
       null
     );
 
@@ -3242,6 +3296,10 @@ function HomePage() {
         confirmed
       );
 
+      setAgentRegistryAnchor(
+        null
+      );
+
       setAgentExecution(
         null
       );
@@ -3260,7 +3318,214 @@ function HomePage() {
     }
   }
 
+  async function anchorInlineAuthorization() {
+    if (
+      !agentAuthorization
+    ) {
+      setAgentError(
+        "Authorize the exact request before anchoring it onchain."
+      );
+
+      return;
+    }
+
+    setAgentBusy(
+      "anchor"
+    );
+
+    setAgentError(
+      null
+    );
+
+    setAgentExecution(
+      null
+    );
+
+    try {
+      const provider =
+        getProvider();
+
+      await ensureBscTestnet(
+        provider
+      );
+
+      const prepared =
+        await apiRequest<
+          RegistryPrepareResponse
+        >(
+          "/api/authorization/registry/prepare",
+          {
+            method:
+              "POST",
+
+            body: {
+              authorizationId:
+                agentAuthorization
+                  .authorizationId,
+            },
+          }
+        );
+
+      if (
+        prepared.chainId !==
+        97
+      ) {
+        throw new Error(
+          "BOUND refused an intent anchor for the wrong network."
+        );
+      }
+
+      if (
+        prepared.from
+          .toLowerCase() !==
+        agentAuthorization.signer
+          .toLowerCase()
+      ) {
+        throw new Error(
+          "The registry authorizer does not match the human signer."
+        );
+      }
+
+      if (
+        prepared.requestHash
+          .toLowerCase() !==
+        agentAuthorization.requestHash
+          .toLowerCase()
+      ) {
+        throw new Error(
+          "The registry request hash does not match the signed request."
+        );
+      }
+
+      const accounts =
+        await provider.request({
+          method:
+            "eth_accounts",
+        });
+
+      if (
+        !Array.isArray(
+          accounts
+        ) ||
+        typeof accounts[0] !==
+        "string" ||
+        accounts[0]
+          .toLowerCase() !==
+        prepared.from
+          .toLowerCase()
+      ) {
+        throw new Error(
+          "Select the same wallet that signed the BOUND authorization."
+        );
+      }
+
+      /*
+       * Human wallet sends the commitment transaction.
+       *
+       * This uses only tBNB gas.
+       * It does NOT transfer TEST_USDT
+       * and does NOT execute the inspected transaction.
+       */
+      const rawHash =
+        await provider.request({
+          method:
+            "eth_sendTransaction",
+
+          params: [
+            {
+              from:
+                prepared.from,
+
+              to:
+                prepared.to,
+
+              data:
+                prepared.data,
+
+              value:
+                "0x0",
+            },
+          ],
+        });
+
+      if (
+        typeof rawHash !==
+        "string" ||
+        !/^0x[0-9a-fA-F]{64}$/.test(
+          rawHash
+        )
+      ) {
+        throw new Error(
+          "The wallet did not return a valid registry transaction hash."
+        );
+      }
+
+      const verified =
+        await apiRequest<
+          RegistryAnchorVerification
+        >(
+          "/api/authorization/registry/verify",
+          {
+            method:
+              "POST",
+
+            body: {
+              authorizationId:
+                agentAuthorization
+                  .authorizationId,
+
+              transactionHash:
+                rawHash,
+            },
+          }
+        );
+
+      if (
+        !verified.anchored ||
+        verified.requestHash
+          .toLowerCase() !==
+        agentAuthorization.requestHash
+          .toLowerCase()
+      ) {
+        throw new Error(
+          "BOUND could not verify the exact on-chain commitment."
+        );
+      }
+
+      setAgentRegistryAnchor(
+        verified
+      );
+
+      setAgentExecution(
+        null
+      );
+    } catch (
+      nextError
+    ) {
+      setAgentError(
+        getErrorMessage(
+          nextError
+        )
+      );
+    } finally {
+      setAgentBusy(
+        null
+      );
+    }
+  }
+
+
   async function verifyInlineBoundary() {
+    if (
+      !agentRegistryAnchor
+    ) {
+      setAgentError(
+        "Anchor the human authorization on BSC Testnet before checking the payment boundary."
+      );
+
+      return;
+    }
+
     if (
       !agentAuthorization
     ) {
@@ -4792,8 +5057,10 @@ function HomePage() {
                   <span>
                     {agentBusy ===
                     "prepare"
-                      ? "Opening wallet…"
-                      : "Connect wallet & review"}
+                      ? "Opening review…"
+                      : agentWallet
+                        ? "Review paid request"
+                        : "Connect wallet to review"}
                   </span>
 
                   <span>
@@ -4952,6 +5219,68 @@ function HomePage() {
                     }
                   </small>
                 </div>
+
+                {!agentRegistryAnchor ? (
+                  <>
+                    <h2>
+                      Anchor the exact intent onchain.
+                    </h2>
+
+                    <p>
+                      The human signature is valid.
+                      Commit the same request hash and
+                      payment boundary to BOUNDIntentRegistry.
+                    </p>
+
+                    <button
+                      className="lens-agent-button"
+                      type="button"
+                      disabled={
+                        agentBusy !==
+                        null
+                      }
+                      onClick={
+                        () => {
+                          void anchorInlineAuthorization();
+                        }
+                      }
+                    >
+                      <span>
+                        {agentBusy ===
+                        "anchor"
+                          ? "Waiting for BSC Testnet…"
+                          : "Anchor exact intent on BSC Testnet"}
+                      </span>
+
+                      <span>
+                        →
+                      </span>
+                    </button>
+
+                    <small className="lens-auth-note">
+                      On-chain commitment only.
+                      tBNB is used for gas.
+                      No TEST_USDT payment is sent.
+                    </small>
+                  </>
+                ) : (
+                  <div className="lens-agent-authorized">
+                    <span>
+                      ✓ ON-CHAIN INTENT ANCHORED
+                    </span>
+
+                    <strong>
+                      Exact request commitment verified
+                    </strong>
+
+                    <small>
+                      {shortAddress(
+                        agentRegistryAnchor
+                          .transactionHash
+                      )}
+                    </small>
+                  </div>
+                )}
 
                 <h2>
                   Re-check it at the
