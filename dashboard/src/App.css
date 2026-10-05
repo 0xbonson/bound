@@ -5206,3 +5206,95 @@ code {
 .lens-bound-result code {
   white-space: pre-wrap;
 }
+
+/* Keep the Lens explanation at its natural height.
+   The Agent/Guard column may grow independently. */
+.lens-main-grid {
+  align-items: start;
+}
+
+/* Raw paid evidence is available without dominating the workspace. */
+.lens-paid-evidence {
+  margin-top: 16px;
+  border: 1px solid rgba(238, 229, 215, 0.16);
+}
+
+.lens-paid-evidence summary {
+  padding: 14px 16px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.lens-paid-evidence-body {
+  margin: 0;
+  padding: 16px;
+  border-top: 1px solid rgba(238, 229, 215, 0.12);
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/*
+ * Desktop Lens stays visible while the Agent/Guard
+ * workflow grows vertically.
+ */
+@media (min-width: 1051px) {
+  .lens-understand-panel {
+    position: sticky;
+    top: 92px;
+    align-self: start;
+  }
+}
+
+/*
+ * A completed paid run is a receipt, not a replay of
+ * every interaction that led to it.
+ */
+.lens-agent-console.is-complete > h2,
+.lens-agent-console.is-complete > p,
+.lens-agent-console.is-complete > .bound-demo-goal,
+.lens-agent-console.is-complete > .lens-agent-prompt,
+.lens-agent-console.is-complete > .lens-agent-button,
+.lens-agent-console.is-complete > .lens-agent-section-divider,
+.lens-agent-console.is-complete
+  > .lens-agent-section-divider
+  + .lens-panel-title {
+  display: none;
+}
+
+.lens-agent-console.is-complete {
+  align-self: start;
+}
+
+.lens-agent-final-answer {
+  margin-top: 14px;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  opacity: 0.82;
+}
+
+/*
+ * BOUND Workspace is a sequential execution flow.
+ * Do not force Agent / Guard into a narrow sidebar.
+ */
+.lens-main-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+@media (min-width: 1051px) {
+  .lens-understand-panel {
+    position: static;
+    top: auto;
+    align-self: auto;
+  }
+}
+
+.lens-agent-console {
+  width: 100%;
+}

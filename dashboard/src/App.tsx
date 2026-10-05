@@ -4756,7 +4756,14 @@ function HomePage() {
             </div>
           </article>
 
-          <aside className="lens-agent-console">
+          <aside
+            className={
+              agentExecution?.status ===
+              "COMPLETED"
+                ? "lens-agent-console is-complete"
+                : "lens-agent-console"
+            }
+          >
             <div className="lens-agent-orb">
               B
             </div>
@@ -4799,7 +4806,7 @@ function HomePage() {
                   onClick={
                     () => {
                       setLensAgentQuestion(
-                        "Obtain the exact raw RPC result returned by the registered paid transaction-analysis provider for this transaction. I need evidence from that paid provider itself, not a summary inferred from the existing Lens facts."
+                        "Independently verify this transaction using the registered paid transaction-analysis provider. Compare the paid provider result with the existing BOUND Lens evidence and summarize what the provider confirms or contradicts. Keep the raw provider response as evidence, not as the final answer."
                       );
 
                       setLensAgentError(
@@ -4870,7 +4877,9 @@ function HomePage() {
               </div>
             )}
 
-            {lensAgentResponse && (
+            {lensAgentResponse &&
+            agentExecution?.status !==
+              "COMPLETED" && (
               <>
                 <div className="lens-agent-message">
                   <strong>
@@ -5347,7 +5356,9 @@ function HomePage() {
               </>
             )}
 
-            {agentAuthorization && (
+            {agentAuthorization &&
+            agentExecution?.status !==
+              "COMPLETED" && (
               <>
                 <div className="lens-agent-authorized">
                   <span>
@@ -5564,7 +5575,9 @@ function HomePage() {
               </>
             )}
 
-            {agentExecution && (
+            {agentExecution &&
+            agentExecution.status !==
+              "COMPLETED" && (
               <div
                 className={
                   agentExecution.status ===
@@ -5588,9 +5601,7 @@ function HomePage() {
                   </strong>
                 </div>
 
-                {inlineWhatChanged &&
-                agentExecution.status !==
-                  "COMPLETED" && (
+                {inlineWhatChanged && (
                   <>
                     <h3>
                       {
@@ -5933,10 +5944,10 @@ function HomePage() {
                     </div>
 
                     <h3>
-                      Agent final answer
+                      Independent verification complete.
                     </h3>
 
-                    <p>
+                    <p className="lens-agent-final-answer">
                       {
                         agentExecution
                           .finalAgent
@@ -5945,16 +5956,25 @@ function HomePage() {
                     </p>
 
                     {agentExecution
-                      .agentContinuation
-                      ?.message && (
-                      <p>
-                        {
-                          agentExecution
-                            .agentContinuation
-                            .message
-                        }
-                      </p>
+                      .toolResult && (
+                      <details className="lens-paid-evidence">
+                        <summary>
+                          View raw paid provider response
+                        </summary>
+
+                        <pre className="lens-paid-evidence-body">
+                          {
+                            JSON.stringify(
+                              agentExecution
+                                .toolResult,
+                              null,
+                              2
+                            )
+                          }
+                        </pre>
+                      </details>
                     )}
+
                   </>
                 ) : (
                   <p>
