@@ -429,6 +429,33 @@ export async function runAgentRuntime(
                 );
             }
 
+            /*
+             * Paid capabilities are also single-use within
+             * one evidence state.
+             *
+             * A completed paid observation must never cause
+             * the Agent to purchase the same capability
+             * again just because the model still asks for it.
+             */
+            const completed =
+                new Set(
+                    getCompletedAgentToolIds(
+                        observations
+                    )
+                );
+
+
+            if (
+                completed.has(
+                    tool.id
+                )
+            ) {
+                throw new Error(
+                    `AGENT_RUNTIME_REFUSED_REPEATED_TOOL:${tool.id}`
+                );
+            }
+
+
             const request =
                 dependencies
                     .buildPaidRequest({

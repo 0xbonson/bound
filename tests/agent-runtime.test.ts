@@ -22,6 +22,12 @@ import type {
 } from "../src/agent/agent-observation.js";
 
 import {
+    buildPaidTransactionAnalysisObservation,
+} from "../src/agent/agent-observation.js";
+
+
+
+import {
     getAgentTool,
 } from "../src/agent/agent-tool-registry.js";
 
@@ -667,6 +673,275 @@ test(
                 ),
 
             /AGENT_RUNTIME_REFUSED_REPEATED_TOOL/
+        );
+    }
+);
+
+test(
+    "runtime answers from completed paid evidence without another purchase",
+    async () => {
+        const rpcResult = {
+            status:
+                "0x1",
+
+            transactionHash:
+                HASH,
+        };
+
+
+        const paidObservation =
+            buildPaidTransactionAnalysisObservation({
+                source:
+                    "live-bsc-testnet-rpc",
+
+                network:
+                    "BNB Smart Chain Testnet",
+
+                chainId:
+                    97,
+
+                blockNumber:
+                    "123456",
+
+                checkedTransaction: {
+                    hash:
+                        HASH,
+                },
+
+                rpcResult,
+            });
+
+
+        let plannerCalled =
+            false;
+
+        let freeExecutionCalled =
+            false;
+
+
+        const dependencies:
+            AgentRuntimeDependencies = {
+            ask:
+                async (
+                    input
+                ) => {
+                    const observation =
+                        (
+                            input.observations ??
+                            []
+                        )
+                            .find(
+                                (
+                                    item
+                                ) =>
+                                    item.toolId ===
+                                    "transaction_analysis_paid"
+                            );
+
+
+                    assert.ok(
+                        observation
+                    );
+
+
+                    if (
+                        observation.toolId !==
+                        "transaction_analysis_paid"
+                    ) {
+                        throw new Error(
+                            "Expected paid transaction analysis observation."
+                        );
+                    }
+
+
+                    assert.equal(
+                        observation.capability,
+                        "paid_transaction_analysis"
+                    );
+
+
+                    assert.deepEqual(
+                        observation.result.rpcResult,
+                        rpcResult
+                    );
+
+
+                    return lensResult(
+                        "ANSWERED",
+                        "The paid provider returned the requested transaction evidence."
+                    );
+                },
+
+
+            plan:
+                async () => {
+                    plannerCalled =
+                        true;
+
+                    return paidPlan();
+                },
+
+
+            executeFree:
+                async () => {
+                    freeExecutionCalled =
+                        true;
+
+                    throw new Error(
+                        "Free executor must not run."
+                    );
+                },
+
+
+            buildPaidRequest:
+                buildRegisteredPaidToolRequest,
+        };
+
+
+        const result =
+            await runAgentRuntime(
+                {
+                    goal:
+                        "Use paid provider evidence to finish the transaction analysis.",
+
+                    facts,
+
+                    interpretation,
+
+                    observations: [
+                        paidObservation,
+                    ],
+                },
+
+                dependencies
+            );
+
+
+        assert.equal(
+            result.status,
+            "ANSWERED"
+        );
+
+
+        assert.equal(
+            result.lensAgent.answer,
+            "The paid provider returned the requested transaction evidence."
+        );
+
+
+        assert.equal(
+            plannerCalled,
+            false
+        );
+
+
+        assert.equal(
+            freeExecutionCalled,
+            false
+        );
+
+
+        assert.equal(
+            result.paidRequest,
+            null
+        );
+
+
+        assert.equal(
+            result.observations
+                .some(
+                    (
+                        item
+                    ) =>
+                        item.toolId ===
+                        "transaction_analysis_paid"
+                ),
+            true
+        );
+    }
+);
+
+
+test(
+    "runtime refuses to purchase an already completed paid tool again",
+    async () => {
+        const paidObservation =
+            buildPaidTransactionAnalysisObservation({
+                source:
+                    "live-bsc-testnet-rpc",
+
+                network:
+                    "BNB Smart Chain Testnet",
+
+                chainId:
+                    97,
+
+                blockNumber:
+                    "123456",
+
+                checkedTransaction: {
+                    hash:
+                        HASH,
+                },
+
+                rpcResult: {
+                    status:
+                        "0x1",
+
+                    transactionHash:
+                        HASH,
+                },
+            });
+
+
+        const dependencies:
+            AgentRuntimeDependencies = {
+            ask:
+                async () =>
+                    lensResult(
+                        "NEEDS_MORE_EVIDENCE",
+                        "The model incorrectly asks for the paid capability again."
+                    ),
+
+
+            plan:
+                async () =>
+                    paidPlan(),
+
+
+            executeFree:
+                async () => {
+                    throw new Error(
+                        "Free executor must not run."
+                    );
+                },
+
+
+            buildPaidRequest:
+                buildRegisteredPaidToolRequest,
+        };
+
+
+        await assert.rejects(
+            () =>
+                runAgentRuntime(
+                    {
+                        goal:
+                            "Do not repurchase evidence that already exists.",
+
+                        facts,
+
+                        interpretation,
+
+                        observations: [
+                            paidObservation,
+                        ],
+                    },
+
+                    dependencies
+                ),
+
+            /AGENT_RUNTIME_REFUSED_REPEATED_TOOL:transaction_analysis_paid/
         );
     }
 );

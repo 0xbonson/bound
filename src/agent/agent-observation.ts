@@ -165,10 +165,56 @@ export type RecipientCodeObservation = {
 };
 
 
+export type PaidTransactionAnalysisObservation = {
+    version:
+        typeof AGENT_OBSERVATION_VERSION;
+
+    toolId:
+        "transaction_analysis_paid";
+
+    source:
+        "MPP_PAID_TOOL";
+
+    status:
+        "COMPLETED";
+
+    capability:
+        "paid_transaction_analysis";
+
+    summary:
+        string;
+
+    result: {
+        source:
+            string |
+            null;
+
+        network:
+            string |
+            null;
+
+        chainId:
+            number |
+            null;
+
+        blockNumber:
+            string |
+            null;
+
+        checkedTransaction:
+            unknown;
+
+        rpcResult:
+            unknown;
+    };
+};
+
+
 export type AgentObservation =
     | ContractLookupObservation
     | ProtocolLookupObservation
-    | RecipientCodeObservation;
+    | RecipientCodeObservation
+    | PaidTransactionAnalysisObservation;
 
 
 function buildContractObservation(
@@ -454,6 +500,87 @@ export function deriveInitialAgentObservations(
             input.protocol
         ),
     ];
+}
+
+
+export function buildPaidTransactionAnalysisObservation(
+    input: {
+        source?:
+            string;
+
+        network?:
+            string;
+
+        chainId?:
+            number;
+
+        blockNumber?:
+            string;
+
+        checkedTransaction?:
+            unknown;
+
+        rpcResult?:
+            unknown;
+    }
+):
+    PaidTransactionAnalysisObservation {
+    return {
+        version:
+            AGENT_OBSERVATION_VERSION,
+
+        toolId:
+            "transaction_analysis_paid",
+
+        source:
+            "MPP_PAID_TOOL",
+
+        status:
+            "COMPLETED",
+
+        capability:
+            "paid_transaction_analysis",
+
+        summary:
+            [
+                "Paid transaction analysis completed through the MPP-protected provider.",
+                input.network
+                    ? `Network: ${input.network}.`
+                    : "",
+                input.blockNumber
+                    ? `Block: ${input.blockNumber}.`
+                    : "",
+                "The returned RPC evidence is now available to the Agent.",
+            ]
+                .filter(Boolean)
+                .join(" "),
+
+        result: {
+            source:
+                input.source ??
+                null,
+
+            network:
+                input.network ??
+                null,
+
+            chainId:
+                input.chainId ??
+                null,
+
+            blockNumber:
+                input.blockNumber ??
+                null,
+
+            checkedTransaction:
+                input.checkedTransaction ??
+                null,
+
+            rpcResult:
+                input.rpcResult ??
+                null,
+        },
+    };
 }
 
 

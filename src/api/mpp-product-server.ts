@@ -88,6 +88,7 @@ import {
 } from "../chain/lens-translation.js";
 
 import {
+    buildPaidTransactionAnalysisObservation,
     deriveInitialAgentObservations,
 } from "../agent/agent-observation.js";
 
@@ -4785,6 +4786,19 @@ async function handleRequest(
                 parsed.authorizationId
             );
 
+        /*
+         * Recover the original autonomous Agent goal before
+         * entering the protected payment path.
+         *
+         * If this plan cannot be recovered, execution stops
+         * before any payment can be broadcast.
+         */
+        const plan =
+            getPlan(
+                confirmed.planId
+            );
+
+
         const result =
             await executeAuthorization(
                 confirmed,
@@ -4796,6 +4810,151 @@ async function handleRequest(
             parseTransactionAnalysisArguments(
                 confirmed.request
             );
+
+
+        /*
+         * COMPLETED is not the final product output.
+         *
+         * The MPP-protected tool result becomes a
+         * host-controlled Agent observation. The Agent then
+         * reasons again over the evidence it requested.
+         *
+         * This continuation never authorizes or performs
+         * another payment.
+         */
+        let resumedRuntime:
+            Awaited<
+                ReturnType<
+                    typeof runAgentRuntime
+                >
+            > |
+            null =
+            null;
+
+
+        let agentContinuation:
+            {
+                status:
+                    "COMPLETED" |
+                    "FAILED";
+
+                message:
+                    string;
+            } |
+            null =
+            null;
+
+
+        if (
+            result.status ===
+            "COMPLETED"
+        ) {
+            try {
+                /*
+                 * The protected paid tool is BSC Testnet
+                 * specific. Qualifying the transaction hash
+                 * with the explorer prevents ambiguous
+                 * network rediscovery during continuation.
+                 */
+                const resumedInput =
+                    `https://testnet.bscscan.com/tx/${executionArguments.transactionHash}`;
+
+
+                const facts =
+                    await fetchUniversalTransactionFacts(
+                        resumedInput
+                    );
+
+
+                const contract =
+                    facts.transaction.to
+                        ? await resolveContractIntelligence({
+                            chainId:
+                                facts.subject.chainId,
+
+                            address:
+                                facts.transaction.to,
+
+                            calldata:
+                                facts.transaction.input,
+                        })
+                        : null;
+
+
+                const interpretation =
+                    interpretTransaction(
+                        facts,
+                        contract
+                    );
+
+
+                const initialObservations =
+                    deriveInitialAgentObservations({
+                        contractLookupAttempted:
+                            facts.transaction.to !==
+                            null,
+
+                        contract,
+
+                        protocol:
+                            interpretation.protocol,
+                    });
+
+
+                if (
+                    !result.toolResult
+                ) {
+                    throw new Error(
+                        "COMPLETED_PAID_EXECUTION_MISSING_TOOL_RESULT"
+                    );
+                }
+
+
+                const paidObservation =
+                    buildPaidTransactionAnalysisObservation(
+                        result.toolResult
+                    );
+
+
+                resumedRuntime =
+                    await runAgentRuntime({
+                        goal:
+                            plan.task,
+
+                        facts,
+
+                        interpretation,
+
+                        observations: [
+                            ...initialObservations,
+                            paidObservation,
+                        ],
+                    });
+
+
+                agentContinuation = {
+                    status:
+                        "COMPLETED",
+
+                    message:
+                        "The Agent resumed with the paid tool result as grounded evidence.",
+                };
+            } catch {
+                /*
+                 * A post-payment Agent/model failure MUST
+                 * NOT make the already-broadcast payment
+                 * appear retryable.
+                 */
+                agentContinuation = {
+                    status:
+                        "FAILED",
+
+                    message:
+                        "The paid tool completed, but the Agent could not produce the final report. Do not retry the payment automatically.",
+                };
+            }
+        }
+
 
         if (
             result.status ===
@@ -4879,28 +5038,84 @@ async function handleRequest(
                     ),
 
                 payerInvoked:
-                    resultView
-                        .signerInvoked ??
-                    false,
+                    result.status ===
+                    "COMPLETED"
+                        ? (
+                            result.audit
+                                ?.signerInvoked ??
+                            false
+                        )
+                        : resultView
+                            .signerInvoked ??
+                            false,
 
                 paymentBroadcast:
-                    resultView
-                        .paymentBroadcast ??
-                    false,
+                    result.status ===
+                    "COMPLETED"
+                        ? (
+                            result.audit
+                                ?.paymentBroadcast ??
+                            false
+                        )
+                        : resultView
+                            .paymentBroadcast ??
+                            false,
 
                 paymentTxHash:
-                    resultView
-                        .paymentTxHash ??
-                    undefined,
+                    result.status ===
+                    "COMPLETED"
+                        ? result.payment
+                            ?.txHash
+                        : resultView
+                            .paymentTxHash ??
+                            undefined,
             });
         }
 
 
-        sendJson(
+                sendJson(
             request,
             response,
             200,
-            result
+            {
+                ...result,
+
+                finalAgent:
+                    resumedRuntime
+                        ? {
+                            status:
+                                resumedRuntime.status,
+
+                            answer:
+                                resumedRuntime
+                                    .lensAgent
+                                    .answer,
+
+                            limitations:
+                                resumedRuntime
+                                    .lensAgent
+                                    .limitations,
+
+                            observations:
+                                resumedRuntime
+                                    .observations,
+
+                            activity:
+                                resumedRuntime
+                                    .activity,
+
+                            steps:
+                                resumedRuntime
+                                    .steps,
+
+                            maxSteps:
+                                resumedRuntime
+                                    .maxSteps,
+                        }
+                        : null,
+
+                agentContinuation,
+            }
         );
 
         return;
