@@ -746,6 +746,13 @@ const BSC_TESTNET_EXPLORER =
 const GUARDED_PAYMENT_TX =
   "0x4185b1cb8dea410022833f66443230ebda0548178a18f10c92b635b44ee37450";
 
+
+
+
+
+
+
+
 const SAMPLE_TRANSACTION_HASH =
   GUARDED_PAYMENT_TX;
 
@@ -5673,497 +5680,1005 @@ function HomePage() {
  * =======================================================
  */
 
+type ProofActivityKind =
+  | "ANALYZED"
+  | "AGENT_RUN"
+  | "AUTHORIZED"
+  | "ANCHORED"
+  | "ALLOWED"
+  | "BLOCKED";
+
+
+type ProofActivitySubject = {
+  transactionHash: string;
+  network: string;
+  chainId: number;
+};
+
+
+type ProofActivityEvent = {
+  version: string;
+  id: string;
+  kind: ProofActivityKind;
+  createdAt: number;
+
+  subject?: ProofActivitySubject;
+
+  planId?: string;
+  authorizationId?: string;
+
+  requestHash?: string;
+  actualRequestHash?: string;
+
+  signer?: string;
+
+  intentId?: string;
+  anchorTransactionHash?: string;
+  blockNumber?: string;
+
+  paymentTxHash?: string;
+
+  status?: string;
+  scenario?: string;
+  decision?: string;
+
+  payerInvoked?: boolean;
+  paymentBroadcast?: boolean;
+};
+
+
+type ProofActivityHistoryResponse = {
+  version: string;
+  events: ProofActivityEvent[];
+};
+
+
+type ProofActivityFilter =
+  | "ALL"
+  | ProofActivityKind;
+
+
+const PROOF_ACTIVITY_FILTERS: Array<{
+  value: ProofActivityFilter;
+  label: string;
+}> = [
+  {
+    value: "ALL",
+    label: "All",
+  },
+  {
+    value: "ANALYZED",
+    label: "Analyzed",
+  },
+  {
+    value: "AGENT_RUN",
+    label: "Agent",
+  },
+  {
+    value: "AUTHORIZED",
+    label: "Authorized",
+  },
+  {
+    value: "ANCHORED",
+    label: "Anchored",
+  },
+  {
+    value: "ALLOWED",
+    label: "Allowed",
+  },
+  {
+    value: "BLOCKED",
+    label: "Blocked",
+  },
+];
+
+
+function compactProofValue(
+  value:
+    string
+) {
+  if (
+    value.length <=
+    24
+  ) {
+    return value;
+  }
+
+  return (
+    `${value.slice(0, 12)}` +
+    `…` +
+    `${value.slice(-10)}`
+  );
+}
+
+
+function formatProofTime(
+  timestamp:
+    number
+) {
+  try {
+    return new Intl
+      .DateTimeFormat(
+        undefined,
+        {
+          dateStyle:
+            "medium",
+
+          timeStyle:
+            "short",
+        }
+      )
+      .format(
+        new Date(
+          timestamp
+        )
+      );
+  } catch {
+    return new Date(
+      timestamp
+    ).toISOString();
+  }
+}
+
+
+function proofActivityTitle(
+  event:
+    ProofActivityEvent
+) {
+  switch (
+    event.kind
+  ) {
+    case "ANALYZED":
+      return "Transaction analyzed";
+
+    case "AGENT_RUN":
+      return "Agent run";
+
+    case "AUTHORIZED":
+      return "Human authorization confirmed";
+
+    case "ANCHORED":
+      return "Intent anchored onchain";
+
+    case "ALLOWED":
+      return "Exact request allowed";
+
+    case "BLOCKED":
+      return "Changed request blocked";
+  }
+}
+
+
+function proofActivityDescription(
+  event:
+    ProofActivityEvent
+) {
+  switch (
+    event.kind
+  ) {
+    case "ANALYZED":
+      return "BOUND Lens completed deterministic transaction inspection.";
+
+    case "AGENT_RUN":
+      return event.status ===
+        "PAUSED_FOR_AUTHORIZATION"
+        ? "The Agent reached a paid capability and paused for human authorization."
+        : "BOUND Agent reasoned over the transaction evidence.";
+
+    case "AUTHORIZED":
+      return "The human signed the exact paid-tool request and payment boundary.";
+
+    case "ANCHORED":
+      return "The exact authorized intent was committed to BOUNDIntentRegistry.";
+
+    case "ALLOWED":
+      return "The request still matched the human-authorized intent at the payment boundary.";
+
+    case "BLOCKED":
+      return "BOUND detected request drift and stopped the paid path before payment.";
+  }
+}
+
+
+async function fetchProofActivityHistory():
+  Promise<ProofActivityHistoryResponse> {
+
+  const response =
+    await fetch(
+      `${API_BASE}/api/history`,
+      {
+        headers: {
+          Accept:
+            "application/json",
+        },
+      }
+    );
+
+  const body =
+    await response.json() as {
+      version?:
+        unknown;
+
+      events?:
+        unknown;
+
+      error?:
+        string;
+
+      message?:
+        string;
+    };
+
+  if (
+    !response.ok
+  ) {
+    throw new Error(
+      body.message ??
+      body.error ??
+      "BOUND activity history could not be loaded."
+    );
+  }
+
+  if (
+    !Array.isArray(
+      body.events
+    )
+  ) {
+    throw new Error(
+      "BOUND activity history returned an invalid response."
+    );
+  }
+
+  return {
+    version:
+      typeof body.version ===
+        "string"
+        ? body.version
+        : "bound.activity-history.v1",
+
+    events:
+      body.events as
+        ProofActivityEvent[],
+  };
+}
+
+
+function ProofDetailRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="proof-activity-detail-row">
+      <span>
+        {label}
+      </span>
+
+      <div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+
 function ProofPage() {
+  const [
+    history,
+    setHistory,
+  ] =
+    useState<
+      ProofActivityEvent[]
+    >([]);
+
+  const [
+    filter,
+    setFilter,
+  ] =
+    useState<
+      ProofActivityFilter
+    >(
+      "ALL"
+    );
+
+  const [
+    selectedActivityId,
+    setSelectedActivityId,
+  ] =
+    useState<
+      string |
+      null
+    >(
+      null
+    );
+
+  const [
+    historyBusy,
+    setHistoryBusy,
+  ] =
+    useState(
+      true
+    );
+
+  const [
+    historyError,
+    setHistoryError,
+  ] =
+    useState<
+      string |
+      null
+    >(
+      null
+    );
+
+
+  useEffect(
+    () => {
+      let active =
+        true;
+
+      void (
+        async () => {
+          try {
+            const result =
+              await fetchProofActivityHistory();
+
+            if (
+              !active
+            ) {
+              return;
+            }
+
+            setHistory(
+              result.events
+            );
+
+            setHistoryError(
+              null
+            );
+          } catch (
+            error
+          ) {
+            if (
+              !active
+            ) {
+              return;
+            }
+
+            setHistoryError(
+              error instanceof Error
+                ? error.message
+                : "BOUND activity history could not be loaded."
+            );
+          } finally {
+            if (
+              active
+            ) {
+              setHistoryBusy(
+                false
+              );
+            }
+          }
+        }
+      )();
+
+      return () => {
+        active =
+          false;
+      };
+    },
+    []
+  );
+
+
+  const filteredHistory =
+    useMemo(
+      () =>
+        filter ===
+          "ALL"
+          ? history
+          : history.filter(
+              (
+                event
+              ) =>
+                event.kind ===
+                filter
+            ),
+      [
+        filter,
+        history,
+      ]
+    );
+
+
+  const selectedActivity =
+    useMemo(
+      () =>
+        filteredHistory.find(
+          (
+            event
+          ) =>
+            event.id ===
+            selectedActivityId
+        ) ??
+        filteredHistory[0] ??
+        null,
+      [
+        filteredHistory,
+        selectedActivityId,
+      ]
+    );
+
+
+  async function refreshHistory() {
+    setHistoryBusy(
+      true
+    );
+
+    try {
+      const result =
+        await fetchProofActivityHistory();
+
+      setHistory(
+        result.events
+      );
+
+      setHistoryError(
+        null
+      );
+    } catch (
+      error
+    ) {
+      setHistoryError(
+        error instanceof Error
+          ? error.message
+          : "BOUND activity history could not be loaded."
+      );
+    } finally {
+      setHistoryBusy(
+        false
+      );
+    }
+  }
+
+
   return (
     <Shell>
-      <main className="proof-v2">
+      <main className="proof-activity">
 
-        {/* HERO */}
-        <section className="proof-v2-hero">
+        <header className="proof-activity-header">
           <div>
             <div className="eyebrow">
-              VERIFIED TESTNET EVIDENCE
+              PROOF
             </div>
 
             <h1>
-              One request paid.
-              <br />
-              One mutation stopped.
+              Verified activity
             </h1>
 
             <p>
-              This page shows a previously recorded
-              BSC Testnet verification run. It is
-              historical evidence, not the transaction
-              currently being analyzed in Workspace.
+              A runtime record of what BOUND analyzed,
+              authorized, anchored, allowed, or stopped.
             </p>
           </div>
 
-          <div
-            className="proof-v2-seal"
-            aria-hidden="true"
-          >
-            <span>
-              REQUEST
-            </span>
-
+          <div className="proof-activity-header-meta">
             <strong>
-              ≡
+              {history.length}
             </strong>
 
             <span>
-              INTENT
+              {history.length === 1
+                ? "activity"
+                : "activities"}
             </span>
           </div>
-        </section>
+        </header>
 
 
-        {/* SUMMARY */}
-        <div className="proof-history-note">
-          <span>
-            HISTORICAL PROOF
-          </span>
+        <div className="proof-activity-toolbar">
+          <div
+            className="proof-activity-filters"
+            aria-label="Filter activity"
+          >
+            {PROOF_ACTIVITY_FILTERS.map(
+              (
+                item
+              ) => (
+                <button
+                  key={
+                    item.value
+                  }
+                  type="button"
+                  className={
+                    filter ===
+                      item.value
+                      ? "active"
+                      : ""
+                  }
+                  onClick={
+                    () =>
+                      setFilter(
+                        item.value
+                      )
+                  }
+                >
+                  {
+                    item.label
+                  }
+                </button>
+              )
+            )}
+          </div>
 
-          <p>
-            Recorded BSC Testnet evidence.
-            For a live transaction, use Workspace.
-          </p>
-
-          <a href="/app">
-            Open live Workspace →
-          </a>
+          <button
+            type="button"
+            className="proof-activity-refresh"
+            onClick={
+              () => {
+                void refreshHistory();
+              }
+            }
+            disabled={
+              historyBusy
+            }
+          >
+            {historyBusy
+              ? "Loading…"
+              : "Refresh"}
+          </button>
         </div>
 
-        <section className="proof-v2-summary">
-          <article>
-            <span>
-              GUARDED TOOL COST
-            </span>
 
+        {historyError ? (
+          <div className="proof-activity-error">
             <strong>
-              0.001 TEST_USDT
+              History unavailable
             </strong>
-          </article>
 
-          <article>
             <span>
-              NETWORK
+              {historyError}
             </span>
+          </div>
+        ) : null}
 
-            <strong>
-              BSC Testnet · 97
-            </strong>
-          </article>
 
-          <article>
-            <span>
-              EXACT PATH
-            </span>
+        <section className="proof-activity-layout">
 
-            <strong className="allow">
-              ✓ PAID
-            </strong>
-          </article>
+          <div className="proof-activity-feed">
 
-          <article>
-            <span>
-              MUTATED PATH
-            </span>
+            {historyBusy &&
+            history.length ===
+              0 ? (
+              <div className="proof-activity-empty">
+                Loading activity…
+              </div>
+            ) : null}
 
-            <strong className="block">
-              × STOPPED
-            </strong>
-          </article>
+
+            {!historyBusy &&
+            filteredHistory.length ===
+              0 ? (
+              <div className="proof-activity-empty">
+                <strong>
+                  No activity yet.
+                </strong>
+
+                <span>
+                  New Workspace activity will appear here automatically.
+                </span>
+
+                <a
+                  href="/app"
+                  className="button ghost"
+                >
+                  Open Workspace
+                </a>
+              </div>
+            ) : null}
+
+
+            {filteredHistory.map(
+              (
+                event
+              ) => {
+                const active =
+                  selectedActivity
+                    ?.id ===
+                  event.id;
+
+                return (
+                  <button
+                    key={
+                      event.id
+                    }
+                    type="button"
+                    className={
+                      `proof-activity-row${
+                        active
+                          ? " active"
+                          : ""
+                      }`
+                    }
+                    onClick={
+                      () =>
+                        setSelectedActivityId(
+                          event.id
+                        )
+                    }
+                  >
+                    <span
+                      className="proof-activity-dot"
+                      data-kind={
+                        event.kind
+                      }
+                      aria-hidden="true"
+                    />
+
+                    <span className="proof-activity-kind">
+                      {
+                        event.kind.replace(
+                          "_",
+                          " "
+                        )
+                      }
+                    </span>
+
+                    <span className="proof-activity-main">
+                      <strong>
+                        {
+                          proofActivityTitle(
+                            event
+                          )
+                        }
+                      </strong>
+
+                      <small>
+                        {event.subject
+                          ? compactProofValue(
+                              event.subject
+                                .transactionHash
+                            )
+                          : event.requestHash
+                            ? compactProofValue(
+                                event.requestHash
+                              )
+                            : "BOUND runtime"}
+                      </small>
+                    </span>
+
+                    <span className="proof-activity-side">
+                      <strong>
+                        {event.subject
+                          ?.network ??
+                          "BOUND"}
+                      </strong>
+
+                      <small>
+                        {
+                          formatProofTime(
+                            event.createdAt
+                          )
+                        }
+                      </small>
+                    </span>
+                  </button>
+                );
+              }
+            )}
+
+          </div>
+
+
+          <aside className="proof-activity-detail">
+
+            {selectedActivity ? (
+              <>
+                <div className="proof-activity-detail-head">
+                  <div>
+                    <span>
+                      {
+                        selectedActivity
+                          .kind
+                          .replace(
+                            "_",
+                            " "
+                          )
+                      }
+                    </span>
+
+                    <h2>
+                      {
+                        proofActivityTitle(
+                          selectedActivity
+                        )
+                      }
+                    </h2>
+                  </div>
+
+                  <span
+                    className="proof-activity-dot large"
+                    data-kind={
+                      selectedActivity
+                        .kind
+                    }
+                    aria-hidden="true"
+                  />
+                </div>
+
+                <p className="proof-activity-detail-copy">
+                  {
+                    proofActivityDescription(
+                      selectedActivity
+                    )
+                  }
+                </p>
+
+
+                {selectedActivity.subject ? (
+                  <>
+                    <ProofDetailRow label="Transaction">
+                      <code>
+                        {
+                          selectedActivity
+                            .subject
+                            .transactionHash
+                        }
+                      </code>
+                    </ProofDetailRow>
+
+                    <ProofDetailRow label="Network">
+                      <strong>
+                        {
+                          selectedActivity
+                            .subject
+                            .network
+                        }
+                        {" · "}
+                        {
+                          selectedActivity
+                            .subject
+                            .chainId
+                        }
+                      </strong>
+                    </ProofDetailRow>
+                  </>
+                ) : null}
+
+
+                {selectedActivity.status ? (
+                  <ProofDetailRow label="Status">
+                    <strong>
+                      {
+                        selectedActivity
+                          .status
+                    }
+                    </strong>
+                  </ProofDetailRow>
+                ) : null}
+
+
+                {selectedActivity.decision ? (
+                  <ProofDetailRow label="Guard decision">
+                    <strong
+                      className={
+                        selectedActivity
+                          .decision ===
+                          "BLOCK"
+                          ? "proof-value-block"
+                          : "proof-value-allow"
+                      }
+                    >
+                      {
+                        selectedActivity
+                          .decision
+                      }
+                    </strong>
+                  </ProofDetailRow>
+                ) : null}
+
+
+                {selectedActivity.signer ? (
+                  <ProofDetailRow label="Human signer">
+                    <code>
+                      {
+                        selectedActivity
+                          .signer
+                      }
+                    </code>
+                  </ProofDetailRow>
+                ) : null}
+
+
+                {selectedActivity.requestHash ? (
+                  <ProofDetailRow label="Authorized request">
+                    <code>
+                      {
+                        selectedActivity
+                          .requestHash
+                      }
+                    </code>
+                  </ProofDetailRow>
+                ) : null}
+
+
+                {selectedActivity.actualRequestHash ? (
+                  <ProofDetailRow label="Actual request">
+                    <code>
+                      {
+                        selectedActivity
+                          .actualRequestHash
+                      }
+                    </code>
+                  </ProofDetailRow>
+                ) : null}
+
+
+                {selectedActivity.authorizationId ? (
+                  <ProofDetailRow label="Authorization">
+                    <code>
+                      {
+                        selectedActivity
+                          .authorizationId
+                      }
+                    </code>
+                  </ProofDetailRow>
+                ) : null}
+
+
+                {selectedActivity.intentId ? (
+                  <ProofDetailRow label="Intent ID">
+                    <code>
+                      {
+                        selectedActivity
+                          .intentId
+                      }
+                    </code>
+                  </ProofDetailRow>
+                ) : null}
+
+
+                {selectedActivity.blockNumber ? (
+                  <ProofDetailRow label="Anchor block">
+                    <strong>
+                      {
+                        selectedActivity
+                          .blockNumber
+                      }
+                    </strong>
+                  </ProofDetailRow>
+                ) : null}
+
+
+                {selectedActivity.anchorTransactionHash ? (
+                  <ProofDetailRow label="Anchor transaction">
+                    <a
+                      href={
+                        `${BSC_TESTNET_EXPLORER}/tx/` +
+                        selectedActivity
+                          .anchorTransactionHash
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <code>
+                        {
+                          selectedActivity
+                            .anchorTransactionHash
+                        }
+                      </code>
+                    </a>
+                  </ProofDetailRow>
+                ) : null}
+
+
+                {typeof selectedActivity.payerInvoked ===
+                  "boolean" ? (
+                  <ProofDetailRow label="Payer invoked">
+                    <strong>
+                      {
+                        selectedActivity
+                          .payerInvoked
+                          ? "YES"
+                          : "NO"
+                      }
+                    </strong>
+                  </ProofDetailRow>
+                ) : null}
+
+
+                {typeof selectedActivity.paymentBroadcast ===
+                  "boolean" ? (
+                  <ProofDetailRow label="Payment broadcast">
+                    <strong>
+                      {
+                        selectedActivity
+                          .paymentBroadcast
+                          ? "YES"
+                          : "NO"
+                      }
+                    </strong>
+                  </ProofDetailRow>
+                ) : null}
+
+
+                {selectedActivity.paymentTxHash ? (
+                  <ProofDetailRow label="Payment transaction">
+                    <a
+                      href={
+                        `${BSC_TESTNET_EXPLORER}/tx/` +
+                        selectedActivity
+                          .paymentTxHash
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <code>
+                        {
+                          selectedActivity
+                            .paymentTxHash
+                        }
+                      </code>
+                    </a>
+                  </ProofDetailRow>
+                ) : null}
+
+
+                {selectedActivity.scenario ? (
+                  <ProofDetailRow label="Scenario">
+                    <strong>
+                      {
+                        selectedActivity
+                          .scenario
+                      }
+                    </strong>
+                  </ProofDetailRow>
+                ) : null}
+
+
+                <ProofDetailRow label="Recorded">
+                  <strong>
+                    {
+                      formatProofTime(
+                        selectedActivity
+                          .createdAt
+                      )
+                    }
+                  </strong>
+                </ProofDetailRow>
+
+
+                <ProofDetailRow label="Activity ID">
+                  <code>
+                    {
+                      selectedActivity
+                        .id
+                    }
+                  </code>
+                </ProofDetailRow>
+              </>
+            ) : (
+              <div className="proof-activity-detail-empty">
+                Select an activity to inspect its evidence.
+              </div>
+            )}
+
+          </aside>
+
         </section>
 
 
-        {/* IMPORTANT DISTINCTION */}
-        <section className="proof-v2-distinction proof-v2-reveal">
-          <div className="proof-v2-index">
-            01 · TWO DIFFERENT TRANSACTIONS
-          </div>
-
-          <div className="proof-v2-heading">
-            <h2>
-              Analyze one transaction.
-              <br />
-              Pay for a service.
-            </h2>
-
-            <p>
-              The transaction under analysis is only
-              the subject. BOUND does not replay it,
-              copy-trade it, or act as its original
-              sender. The guarded payment is a separate
-              purchase of the analysis service.
-            </p>
-          </div>
-
-          <div className="proof-v2-distinction-grid">
-            <article>
-              <span>
-                HISTORICAL SUBJECT
-              </span>
-
-              <code>
-                {SAMPLE_TRANSACTION_HASH}
-              </code>
-
-              <strong>
-                Recorded transaction used in the proof run
-              </strong>
-            </article>
-
-            <div className="proof-v2-not-equal">
-              ≠
-            </div>
-
-            <article>
-              <span>
-                HISTORICAL TOOL PAYMENT
-              </span>
-
-              <code>
-                {GUARDED_PAYMENT_TX}
-              </code>
-
-              <strong>
-                Recorded BSC Testnet payment evidence
-              </strong>
-            </article>
-          </div>
-        </section>
-
-
-        {/* REQUEST LINEAGE */}
-        <section className="proof-v2-lineage proof-v2-reveal">
-          <div className="proof-v2-index">
-            02 · EXACT REQUEST LINEAGE
-          </div>
-
-          <div className="proof-v2-heading">
-            <h2>
-              Follow the intent
-              <br />
-              to the boundary.
-            </h2>
-
-            <p>
-              BOUND does not authorize an abstract
-              Agent. It binds a concrete paid-tool
-              request, then verifies that exact request
-              again immediately before payment.
-            </p>
-          </div>
-
-          <div className="proof-v2-flow">
-            <article>
-              <span>
-                01
-              </span>
-
-              <small>
-                SUBJECT
-              </small>
-
-              <strong>
-                Transaction selected
-              </strong>
-            </article>
-
-            <i>
-              →
-            </i>
-
-            <article>
-              <span>
-                02
-              </span>
-
-              <small>
-                TOOL REQUEST
-              </small>
-
-              <strong>
-                Transaction Analysis
-              </strong>
-            </article>
-
-            <i>
-              →
-            </i>
-
-            <article>
-              <span>
-                03
-              </span>
-
-              <small>
-                AUTHORIZATION
-              </small>
-
-              <strong>
-                Exact intent bound
-              </strong>
-            </article>
-
-            <i>
-              →
-            </i>
-
-            <article className="boundary">
-              <span>
-                04
-              </span>
-
-              <small>
-                PAYMENT BOUNDARY
-              </small>
-
-              <strong>
-                Recompute + compare
-              </strong>
-            </article>
-          </div>
-        </section>
-
-
-        {/* TWO PATHS */}
-        <section className="proof-v2-paths proof-v2-reveal">
-          <div className="proof-v2-index">
-            03 · SAME TERMS, TWO OUTCOMES
-          </div>
-
-          <div className="proof-v2-heading">
-            <h2>
-              Matching intent passes.
-              <br />
-              Mutation stops.
-            </h2>
-
-            <p>
-              Chain, payment token, recipient,
-              and amount can remain unchanged.
-              Changing the exact tool argument is
-              still a different intent.
-            </p>
-          </div>
-
-          <div className="proof-v2-path-grid">
-
-            {/* EXACT */}
-            <article className="proof-path allow">
-              <div className="proof-path-head">
-                <span>
-                  EXACT REQUEST
-                </span>
-
-                <strong>
-                  ✓ ALLOW
-                </strong>
-              </div>
-
-              <div className="proof-path-field">
-                <span>
-                  TRANSACTION
-                </span>
-
-                <code>
-                  {SAMPLE_TRANSACTION_HASH}
-                </code>
-              </div>
-
-              <div className="proof-path-field">
-                <span>
-                  PAYMENT TERMS
-                </span>
-
-                <strong>
-                  Chain · token · recipient · amount
-                </strong>
-              </div>
-
-              <div className="proof-path-arrow">
-                ↓
-              </div>
-
-              <div className="proof-path-result">
-                <span>
-                  RESULT
-                </span>
-
-                <strong>
-                  Historical BSC Testnet payment completed
-                </strong>
-
-                <code>
-                  {GUARDED_PAYMENT_TX}
-                </code>
-              </div>
-
-              <a
-                className="button primary"
-                href={`${BSC_TESTNET_EXPLORER}/tx/${GUARDED_PAYMENT_TX}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Inspect on BscScan
-              </a>
-            </article>
-
-
-            {/* MUTATED */}
-            <article className="proof-path block">
-              <div className="proof-path-head">
-                <span>
-                  MUTATED REQUEST
-                </span>
-
-                <strong>
-                  × BLOCK
-                </strong>
-              </div>
-
-              <div className="proof-path-field">
-                <span>
-                  HISTORICAL AUTHORIZED SUBJECT
-                </span>
-
-                <code>
-                  {SAMPLE_TRANSACTION_HASH}
-                </code>
-              </div>
-
-              <div className="proof-path-field changed">
-                <span>
-                  CONTROLLED MUTATION INPUT
-                </span>
-
-                <code>
-                  {CONTROLLED_TAMPER_TRANSACTION_HASH}
-                </code>
-
-                <small>
-                  Synthetic mutation used only to test the boundary
-                </small>
-              </div>
-
-              <div className="proof-path-field">
-                <span>
-                  PAYMENT TERMS
-                </span>
-
-                <strong>
-                  Same chain · token · recipient · amount
-                </strong>
-              </div>
-
-              <div className="proof-path-arrow">
-                ↓
-              </div>
-
-              <div className="proof-path-result">
-                <span>
-                  RESULT
-                </span>
-
-                <strong>
-                  No payment broadcast
-                </strong>
-
-                <small>
-                  Mutation stopped before payment
-                </small>
-              </div>
-            </article>
-
-          </div>
-        </section>
-
-
-        {/* KILLER POINT */}
-        <section className="proof-v2-killer proof-v2-reveal">
-          <div>
-            <div className="proof-v2-index">
-              04 · WHY THIS MATTERS
-            </div>
-
-            <h2>
-              Same price
-              <br />
-              does not mean
-              <br />
-              same intent.
-            </h2>
-          </div>
-
-          <div className="proof-v2-killer-copy">
-            <p>
-              Traditional payment controls can see
-              the merchant, token, chain, and amount.
-              BOUND also binds what the Agent was
-              actually asking the tool to do.
-            </p>
-
-            <div className="proof-v2-equation">
-              <span>
-                PAYMENT TERMS
-              </span>
-
-              <b>
-                +
-              </b>
-
-              <span>
-                EXACT TOOL INTENT
-              </span>
-
-              <b>
-                =
-              </b>
-
-              <strong>
-                BOUND
-              </strong>
-            </div>
-          </div>
-        </section>
-
-
-        {/* CTA */}
-        <section className="proof-v2-cta proof-v2-reveal">
-          <div className="proof-v2-cta-mark">
-            B
-          </div>
-
-          <div>
-            <div className="eyebrow">
-              VERIFY BEFORE MONEY MOVES
-            </div>
-
-            <h2>
-              See the boundary
-              <br />
-              in the real product.
-            </h2>
-
-            <div className="home-actions">
-              <a
-                className="button primary"
-                href="/app"
-              >
-                Open Workspace →
-              </a>
-
-              <a
-                className="button ghost"
-                href="/docs"
-              >
-                Read architecture
-              </a>
-            </div>
-          </div>
-        </section>
+        <footer className="proof-activity-footer">
+          <span>
+            Runtime history is persisted by BOUND.
+          </span>
+
+          <span>
+            On-chain anchors remain independently verifiable.
+          </span>
+        </footer>
 
       </main>
     </Shell>
@@ -6176,6 +6691,7 @@ function ProofPage() {
  * DOCS
  * =======================================================
  */
+
 
 function DocsPage() {
   return (

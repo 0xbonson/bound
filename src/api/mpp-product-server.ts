@@ -116,6 +116,12 @@ import {
     buildBoundIntentRegistryCommit,
 } from "../core/intent-registry.js";
 
+
+import {
+    BoundActivityHistoryStore,
+    type BoundActivityInput,
+} from "../core/activity-history.js";
+
 import {
     MPP_REQUEST_AUTHORIZATION_VERSION,
     buildMppRequestAuthorizationTypedData,
@@ -249,6 +255,8 @@ const FINAL_GUARDED_PAYMENT_TX =
 const DEFAULT_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
 ];
 
 const configuredAllowedOrigins =
@@ -668,6 +676,31 @@ const confirmedAuthorizations =
         string,
         ConfirmedAuthorizationRecord
     >();
+
+const activityHistory =
+    new BoundActivityHistoryStore();
+
+
+async function recordActivity(
+    input:
+        BoundActivityInput
+) {
+    try {
+        await activityHistory.append(
+            input
+        );
+    } catch (
+        error
+    ) {
+        console.error(
+            "BOUND_ACTIVITY_HISTORY_WRITE_FAILED",
+            error instanceof Error
+                ? error.message
+                : "Unknown activity-history error."
+        );
+    }
+}
+
 
 /*
  * =======================================================
@@ -3855,6 +3888,48 @@ async function handleRequest(
 
     if (
         request.method ===
+            "GET" &&
+        url.pathname ===
+            "/api/history"
+    ) {
+        const requestedLimit =
+            Number(
+                url.searchParams.get(
+                    "limit"
+                ) ??
+                "200"
+            );
+
+        const limit =
+            Number.isFinite(
+                requestedLimit
+            )
+                ? requestedLimit
+                : 200;
+
+        const events =
+            await activityHistory.list(
+                limit
+            );
+
+        sendJson(
+            request,
+            response,
+            200,
+            {
+                version:
+                    "bound.activity-history.v1",
+
+                events,
+            }
+        );
+
+        return;
+    }
+
+
+    if (
+        request.method ===
         "POST" &&
         url.pathname ===
         "/api/inspect"
@@ -3933,6 +4008,26 @@ async function handleRequest(
                     facts,
                     contract
                 );
+
+            await recordActivity({
+                kind:
+                    "ANALYZED",
+
+                subject: {
+                    transactionHash:
+                        facts.subject.transactionHash,
+
+                    network:
+                        facts.subject.network,
+
+                    chainId:
+                        facts.subject.chainId,
+                },
+
+                status:
+                    "COMPLETED",
+            });
+
 
             sendJson(
                 request,
@@ -4252,6 +4347,29 @@ async function handleRequest(
                     })
                     : null;
 
+            await recordActivity({
+                kind:
+                    "AGENT_RUN",
+
+                subject: {
+                    transactionHash:
+                        facts.subject.transactionHash,
+
+                    network:
+                        facts.subject.network,
+
+                    chainId:
+                        facts.subject.chainId,
+                },
+
+                planId:
+                    guardPlan?.planId,
+
+                status:
+                    runtime.status,
+            });
+
+
             sendJson(
                 request,
                 response,
@@ -4486,6 +4604,44 @@ async function handleRequest(
                 parsed.signature
             );
 
+        const authorizedArguments =
+            parseTransactionAnalysisArguments(
+                result.request
+            );
+
+        await recordActivity({
+            kind:
+                "AUTHORIZED",
+
+            subject: {
+                transactionHash:
+                    authorizedArguments
+                        .transactionHash,
+
+                network:
+                    "BNB Smart Chain Testnet",
+
+                chainId:
+                    97,
+            },
+
+            planId:
+                result.planId,
+
+            authorizationId:
+                result.authorizationId,
+
+            requestHash:
+                result.requestHash,
+
+            signer:
+                result.signer,
+
+            status:
+                "CONFIRMED",
+        });
+
+
         sendJson(
             request,
             response,
@@ -4545,6 +4701,61 @@ async function handleRequest(
                 parsed.transactionHash
             );
 
+        const anchoredRecord =
+            getConfirmedAuthorization(
+                parsed.authorizationId
+            );
+
+        const anchoredArguments =
+            parseTransactionAnalysisArguments(
+                anchoredRecord.request
+            );
+
+        await recordActivity({
+            kind:
+                "ANCHORED",
+
+            subject: {
+                transactionHash:
+                    anchoredArguments
+                        .transactionHash,
+
+                network:
+                    "BNB Smart Chain Testnet",
+
+                chainId:
+                    97,
+            },
+
+            authorizationId:
+                result.authorizationId,
+
+            requestHash:
+                result.requestHash,
+
+            signer:
+                result.signer,
+
+            intentId:
+                result.intentId,
+
+            anchorTransactionHash:
+                result.transactionHash,
+
+            blockNumber:
+                result.blockNumber,
+
+            status:
+                "ANCHORED",
+
+            payerInvoked:
+                false,
+
+            paymentBroadcast:
+                false,
+        });
+
+
         sendJson(
             request,
             response,
@@ -4580,6 +4791,110 @@ async function handleRequest(
                 parsed.scenario,
                 parsed.confirmRealPayment
             );
+
+        const executionArguments =
+            parseTransactionAnalysisArguments(
+                confirmed.request
+            );
+
+        if (
+            result.status ===
+                "STOPPED" ||
+            result.status ===
+                "READY" ||
+            result.status ===
+                "COMPLETED"
+        ) {
+            const resultView =
+                result as {
+                    request?: {
+                        actualRequestHash?:
+                            string;
+                    };
+
+                    verification?: {
+                        decision?:
+                            string;
+                    };
+
+                    signerInvoked?:
+                        boolean;
+
+                    paymentBroadcast?:
+                        boolean;
+
+                    paymentTxHash?:
+                        string |
+                        null;
+                };
+
+            await recordActivity({
+                kind:
+                    result.status ===
+                        "STOPPED"
+                        ? "BLOCKED"
+                        : "ALLOWED",
+
+                subject: {
+                    transactionHash:
+                        executionArguments
+                            .transactionHash,
+
+                    network:
+                        "BNB Smart Chain Testnet",
+
+                    chainId:
+                        97,
+                },
+
+                authorizationId:
+                    confirmed.id,
+
+                requestHash:
+                    confirmed.requestHash,
+
+                actualRequestHash:
+                    resultView
+                        .request
+                        ?.actualRequestHash,
+
+                signer:
+                    confirmed.expectedSigner,
+
+                status:
+                    result.status,
+
+                scenario:
+                    result.scenario,
+
+                decision:
+                    resultView
+                        .verification
+                        ?.decision ??
+                    (
+                        result.status ===
+                            "STOPPED"
+                            ? "BLOCK"
+                            : "ALLOW"
+                    ),
+
+                payerInvoked:
+                    resultView
+                        .signerInvoked ??
+                    false,
+
+                paymentBroadcast:
+                    resultView
+                        .paymentBroadcast ??
+                    false,
+
+                paymentTxHash:
+                    resultView
+                        .paymentTxHash ??
+                    undefined,
+            });
+        }
+
 
         sendJson(
             request,
