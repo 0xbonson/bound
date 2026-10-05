@@ -357,8 +357,8 @@ type ExecuteResponse = {
     status: string;
     answer: string;
     limitations: string[];
-    observations: unknown[];
-    activity: unknown[];
+    observations: LensAgentResponse["runtime"]["observations"];
+    activity: LensAgentResponse["runtime"]["activity"];
     steps: number;
     maxSteps: number;
   } | null;
@@ -474,7 +474,7 @@ type LensAgentResponse = {
             | "NO_SUITABLE_TOOL";
 
           requiredCapability:
-            string;
+            string | null;
 
           selectedTool:
             string |
@@ -495,7 +495,8 @@ type LensAgentResponse = {
 
         source:
           | "LENS_PIPELINE"
-          | "RUNTIME_TOOL";
+          | "RUNTIME_TOOL"
+          | "MPP_PAID_TOOL";
 
         status:
           | "COMPLETED"
@@ -1230,7 +1231,7 @@ function Shell(
         </span>
 
         <span>
-          Multi-chain Lens · BSC Testnet Agent prototype
+          Hackathon prototype · BSC Testnet · chainId 97
         </span>
       </footer>
     </div>
@@ -1291,6 +1292,10 @@ function MarketingHome() {
                 See the proof
               </a>
             </div>
+            <p className="hackathon-scope">
+              End-to-end hackathon prototype on BNB Smart Chain Testnet · chainId 97.
+              Paid analysis uses 0.001 TEST_USDT after exact human authorization.
+            </p>
           </div>
 
           <div
@@ -1427,7 +1432,7 @@ function MarketingHome() {
           <div className="home-loop-cards">
             <article>
               <span>
-                01 · UNDERSTAND
+                01 · PERCEIVE
               </span>
 
               <strong>
@@ -1446,7 +1451,7 @@ function MarketingHome() {
 
             <article>
               <span>
-                02 · DECIDE
+                02 · REASON + PLAN
               </span>
 
               <strong>
@@ -1473,11 +1478,16 @@ function MarketingHome() {
               </strong>
 
               <p>
-                Paid intent is frozen before
-                authorization continues.
+                Deterministic spending boundary.
+                Paid actions require exact human authorization.
               </p>
             </article>
           </div>
+          <p className="hackathon-scope">
+            Paid path: human authorization → BOUND Intent Registry → exact-request
+            verification → testnet payment → paid tool → Agent observes, reasons
+            again and answers → BOUND Proof.
+          </p>
         </section>
 
 
@@ -1575,7 +1585,7 @@ function MarketingHome() {
               </span>
 
               <code>
-                0x4185b1cb…e37450
+                0xc2691498…aef825
               </code>
 
               <small>
@@ -1913,7 +1923,32 @@ const LENS_UI_LABELS = {
 type LensUiKey =
   keyof typeof LENS_UI_LABELS;
 
+function AgentActivity({ activity }: {
+  activity: LensAgentResponse["runtime"]["activity"];
+}) {
+  return (
+    <ol className="agent-activity" aria-label="Recorded Agent runtime events">
+      {activity.map((item, index) => (
+        <li key={index} data-phase={item.phase}>
+          <div className="agent-activity-phase">
+            <strong>{item.phase}</strong>
+            <small>STEP {item.step}</small>
+          </div>
+          <div>
+            {item.phase === "PLAN" && activity.slice(0, index).some(
+              (event) => event.phase === "OBSERVE"
+            ) && <span className="agent-replan">RE-PLAN · </span>}
+            <p>{item.message}</p>
+            {item.toolId && <code>{item.toolId}</code>}
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function HomePage() {
+  const [submittedMission, setSubmittedMission] = useState("");
   const [
     lensLanguage,
     setLensLanguage,
@@ -3076,6 +3111,7 @@ function HomePage() {
       setLensAgentResponse(
         result
       );
+      setSubmittedMission(question);
     } catch (
       nextError
     ) {
@@ -3914,6 +3950,10 @@ function HomePage() {
               autonomously, then freezes the exact paid
               request before money can move.
             </p>
+            <p className="hackathon-scope">
+              Hackathon prototype · BNB Smart Chain Testnet · chainId 97.
+              Start with BOUND Lens evidence, then give the Agent a mission.
+            </p>
 
             <div className="bound-product-story">
               <div>
@@ -4047,11 +4087,11 @@ function HomePage() {
               </button>
 
               <span>
-                No wallet required
+                No wallet required for Lens or free tools
               </span>
 
               <span>
-                12 supported EVM networks
+                Demo: BNB Smart Chain Testnet · chainId 97
               </span>
             </div>
 
@@ -4126,8 +4166,9 @@ function HomePage() {
             </span>
 
             <strong>
-              {uiLabel("transactionIntelligence")}
+              Workspace · Agent missions & transaction intelligence
             </strong>
+            <small className="hackathon-scope">Hackathon paid flow: BSC Testnet · chainId 97</small>
           </div>
 
           <form
@@ -4191,7 +4232,7 @@ function HomePage() {
               </strong>
 
               <small>
-                UNDERSTAND
+                PERCEIVE
               </small>
             </div>
           </div>
@@ -4217,11 +4258,12 @@ function HomePage() {
               </strong>
 
               <small>
-                DECIDE
+                REASON · PLAN · ACT · OBSERVE
               </small>
             </div>
           </div>
 
+          {(runtimeGuardPlan || proposedInlinePlan) && <>
           <i>
             →
           </i>
@@ -4251,6 +4293,7 @@ function HomePage() {
               </small>
             </div>
           </div>
+          </>}
         </section>
 
         <section className="lens-product-heading">
@@ -4474,7 +4517,7 @@ function HomePage() {
           <article className="lens-understand-panel">
             <div className="lens-panel-title">
               <span>
-                {uiLabel("whatHappened")}
+                BOUND LENS · {uiLabel("whatHappened")}
               </span>
 
               <small>
@@ -4779,7 +4822,7 @@ function HomePage() {
               </div>
 
               <h2>
-                Give the Agent a goal.
+                User mission
               </h2>
 
               <p>
@@ -4789,18 +4832,31 @@ function HomePage() {
                 autonomously. Paid tools stop at Guard.
               </p>
 
+              <p className="agent-lifecycle-guide">
+                MISSION → PERCEIVE via BOUND Lens → REASON → PLAN → ACT → OBSERVE → RE-PLAN → ANSWER
+              </p>
+
               <div className="bound-demo-goal">
                 <div>
                   <span>
-                    LIVE DEMO GOAL
+                    DEMO MISSIONS
                   </span>
 
                   <small>
-                    Creates a genuine evidence gap.
-                    The response is not scripted.
+                    Run against live evidence. The Agent decides which tools are needed.
                   </small>
                 </div>
 
+                <button type="button" onClick={() => setLensAgentQuestion(
+                  "Explain what happened in this transaction using the existing BOUND Lens evidence."
+                )}>
+                  Use existing-evidence goal
+                </button>
+                <button type="button" onClick={() => setLensAgentQuestion(
+                  "Use the registered free recipient_code_lookup tool to check the current deployed bytecode of this transaction recipient. Report hasDeployedBytecode from its observation. This mission needs new recipient_bytecode evidence; contract identity and protocol registry evidence cannot answer it."
+                )}>
+                  Use free-tool goal
+                </button>
                 <button
                   type="button"
                   onClick={
@@ -4877,6 +4933,46 @@ function HomePage() {
               </div>
             )}
 
+            {lensAgentResponse && (
+              <section className="agent-run" aria-label="BOUND Agent lifecycle">
+                <div className="lens-panel-title">
+                  <span>BOUND AGENT · OBSERVABLE ACTIVITY</span>
+                  <small>{agentExecution?.finalAgent?.status ?? lensAgentResponse.runtime.status}</small>
+                </div>
+                <p>Recorded runtime events and tool decisions. No private reasoning is displayed.</p>
+                <div className="agent-perceive">
+                  <strong>USER MISSION</strong>
+                  <p>{submittedMission}</p>
+                </div>
+                <div className="agent-perceive">
+                  <strong>PERCEIVE · BOUND Lens</strong>
+                  <p>Deterministic transaction evidence for <code>{txHash}</code></p>
+                  <details>
+                    <summary>Lens observations used by Agent</summary>
+                    {lensAgentResponse.runtime.observations
+                      .filter((observation) => observation.source === "LENS_PIPELINE")
+                      .map((observation, index) => (
+                        <p key={index}><strong>{observation.toolId}</strong> · {observation.summary}</p>
+                      ))}
+                  </details>
+                </div>
+                <div className="agent-plan-summary">
+                  <div>
+                    <span>LAST PLANNER DECISION · INITIAL RUN</span>
+                    <strong>{lensAgentResponse.runtime.planner?.decision ?? "Not invoked — answered from existing evidence"}</strong>
+                  </div>
+                  <div>
+                    <span>SELECTED TOOL</span>
+                    <code>{lensAgentResponse.runtime.planner?.selectedTool ?? "None"}</code>
+                  </div>
+                </div>
+                {lensAgentResponse.runtime.planner?.decision === "USE_FREE_TOOL" && (
+                  <p>Free action · executed automatically by BOUND Agent. Results feed the next reasoning pass.</p>
+                )}
+                <AgentActivity activity={lensAgentResponse.runtime.activity} />
+              </section>
+            )}
+
             {lensAgentResponse &&
             agentExecution?.status !==
               "COMPLETED" && (
@@ -4916,32 +5012,6 @@ function HomePage() {
                     </strong>
                   </div>
 
-                  {lensAgentResponse
-                    .runtime
-                    .activity
-                    .map(
-                      (
-                        item,
-                        index
-                      ) => (
-                        <div
-                          key={
-                            `agent-runtime-${index}`
-                          }
-                        >
-                          <span>
-                            {item.step ===
-                            0
-                              ? item.phase
-                              : `STEP ${item.step} · ${item.phase}`}
-                          </span>
-
-                          <strong>
-                            {item.message}
-                          </strong>
-                        </div>
-                      )
-                    )}
                 </div>
 
                 {lensAgentResponse
@@ -5003,7 +5073,9 @@ function HomePage() {
                   .evidence
                   .length >
                   0 && (
-                  <div className="lens-agent-review">
+                  <details className="lens-paid-evidence">
+                    <summary>Supporting Agent evidence ({lensAgentResponse.agent.evidence.length})</summary>
+                    <div className="lens-agent-review">
                     {lensAgentResponse
                       .agent
                       .evidence
@@ -5030,7 +5102,8 @@ function HomePage() {
                           </div>
                         )
                       )}
-                  </div>
+                    </div>
+                  </details>
                 )}
 
                 {lensAgentResponse
@@ -5074,7 +5147,7 @@ function HomePage() {
                   </span>
 
                   <span>
-                    ✓ AI used for answer only
+                    ✓ Agent reasoning and tool selection
                   </span>
 
                   <span>
@@ -5084,6 +5157,7 @@ function HomePage() {
               </>
             )}
 
+            {(runtimeGuardPlan || proposedInlinePlan) && <>
             <div className="lens-agent-section-divider" />
 
             <div className="lens-panel-title">
@@ -5095,26 +5169,8 @@ function HomePage() {
                 HUMAN PAYMENT BOUNDARY
               </small>
             </div>
+            </>}
 
-            {!proposedInlinePlan &&
-              !runtimeGuardPlan && (
-              <div className="bound-guard-standby">
-                <span>
-                  GUARD STANDING BY
-                </span>
-
-                <strong>
-                  No paid action requested.
-                </strong>
-
-                <p>
-                  BOUND Guard activates only when
-                  the Agent selects a paid capability.
-                  Until then, no wallet, signature,
-                  authorization, or payment is needed.
-                </p>
-              </div>
-            )}
 
             {agentPlan?.status ===
               "NO_PROPOSAL" && (
@@ -5447,12 +5503,17 @@ function HomePage() {
                 </h2>
 
                 <p>
-                  Keep the exact request,
-                  or simulate an Agent changing
-                  only the transaction after
-                  authorization.
+                  Verify the exact human-authorized request before execution.
                 </p>
 
+                <details className="agent-security-demo" onToggle={(event) => {
+                  if (!event.currentTarget.open && agentScenario !== "normal") {
+                    setAgentScenario("normal");
+                    setAgentExecution(null);
+                  }
+                }}>
+                  <summary>Security demo: simulate request drift</summary>
+                  <p>Change the transaction to demonstrate that Guard blocks request drift before payment. Close to return to the exact request.</p>
                 <div className="lens-scenario-toggle">
                   <button
                     className={
@@ -5544,6 +5605,7 @@ function HomePage() {
                     </code>
                   </div>
                 )}
+                </details>
 
                 <button
                   className="lens-agent-button"
@@ -5814,179 +5876,74 @@ function HomePage() {
             )}
 
 
-            {agentExecution?.status ===
-              "COMPLETED" && (
-              <div className="lens-bound-result allowed">
+            {agentExecution?.status === "COMPLETED" && (
+              <section className="lens-bound-result allowed" aria-label="Agent result after paid evidence">
                 <div className="lens-bound-decision">
-                  <span>
-                    PAID EXECUTION
-                  </span>
-
-                  <strong>
-                    COMPLETED
-                  </strong>
+                  <span>{agentExecution.finalAgent ? "BOUND AGENT" : "PAID EXECUTION"}</span>
+                  <strong>{agentExecution.finalAgent?.status ?? "COMPLETED"}</strong>
                 </div>
 
-                <h3>
-                  Paid evidence returned.
-                </h3>
-
-                <p>
-                  The exact authorized request was
-                  paid and the protected analysis
-                  tool returned its result.
-                </p>
-
-                <div className="lens-payment-proof">
-                  <div>
-                    <span>
-                      PAYMENT BROADCAST
-                    </span>
-
-                    <strong>
-                      {
-                        agentExecution
-                          .audit
-                          ?.paymentBroadcast
-                          ? "YES"
-                          : "NO"
-                      }
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span>
-                      PAID TOOL RESULT
-                    </span>
-
-                    <strong>
-                      {
-                        agentExecution
-                          .toolResult
-                          ? "RETURNED"
-                          : "MISSING"
-                      }
-                    </strong>
-                  </div>
-                </div>
-
-                {(agentExecution
-                  .payment
-                  ?.txHash ||
-                  agentExecution
-                    .paymentTxHash) && (
-                  <p>
-                    Payment tx{" "}
-                    <code>
-                      {
-                        agentExecution
-                          .payment
-                          ?.txHash ??
-                        agentExecution
-                          .paymentTxHash
-                      }
-                    </code>
-                  </p>
-                )}
-
-                {agentExecution
-                  .payment
-                  ?.explorerUrl && (
-                  <p>
-                    <a
-                      href={
-                        agentExecution
-                          .payment
-                          .explorerUrl
-                      }
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      View payment transaction ↗
-                    </a>
-                  </p>
-                )}
-
-                {!agentExecution
-                  .payment
-                  ?.explorerUrl &&
-                agentExecution
-                  .explorerUrl && (
-                  <p>
-                    <a
-                      href={
-                        agentExecution
-                          .explorerUrl
-                      }
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      View payment transaction ↗
-                    </a>
-                  </p>
-                )}
-
-                {agentExecution
-                  .finalAgent ? (
+                {agentExecution.finalAgent ? (
                   <>
-                    <div className="lens-bound-decision">
-                      <span>
-                        BOUND AGENT
-                      </span>
+                    <h3>{agentExecution.finalAgent.status === "ANSWERED" ? "Final answer" : "Current response"}</h3>
+                    <p className="lens-agent-final-answer">{agentExecution.finalAgent.answer}</p>
+                    {agentExecution.finalAgent.limitations.map((limitation, index) => (
+                      <p key={index}>Limitation: {limitation}</p>
+                    ))}
 
-                      <strong>
-                        {
-                          agentExecution
-                            .finalAgent
-                            .status
-                        }
-                      </strong>
-                    </div>
-
-                    <h3>
-                      Independent verification complete.
-                    </h3>
-
-                    <p className="lens-agent-final-answer">
-                      {
-                        agentExecution
-                          .finalAgent
-                          .answer
-                      }
-                    </p>
-
-                    {agentExecution
-                      .toolResult && (
-                      <details className="lens-paid-evidence">
-                        <summary>
-                          View raw paid provider response
-                        </summary>
-
-                        <pre className="lens-paid-evidence-body">
-                          {
-                            JSON.stringify(
-                              agentExecution
-                                .toolResult,
-                              null,
-                              2
-                            )
-                          }
-                        </pre>
-                      </details>
-                    )}
-
+                    <div className="lens-panel-title"><span>OBSERVE · EVIDENCE SOURCES</span></div>
+                    {agentExecution.finalAgent.observations.map((observation, index) => (
+                      <div className="agent-perceive" key={index}>
+                        <strong>{observation.toolId}</strong>
+                        <p>{observation.summary}</p>
+                        <small>
+                          {observation.source === "MPP_PAID_TOOL" ? "Paid provider" :
+                            observation.source === "LENS_PIPELINE" ? "BOUND Lens" : "Registered free tool"}
+                          {" · "}{observation.status}
+                        </small>
+                      </div>
+                    ))}
+                    <details className="lens-paid-evidence">
+                      <summary>Agent resumed · recorded runtime activity</summary>
+                      <p>Guard execution completed. BOUND Agent received the tool evidence and resumed.</p>
+                      <AgentActivity activity={agentExecution.finalAgent.activity} />
+                    </details>
                   </>
                 ) : (
-                  <p>
-                    {
-                      agentExecution
-                        .agentContinuation
-                        ?.message ??
-                      "The paid execution completed, but no final Agent response was returned."
-                    }
-                  </p>
+                  <p>{agentExecution.agentContinuation?.message ??
+                    "Paid execution completed, but no final Agent response was returned."}</p>
                 )}
-              </div>
+
+                {agentExecution.toolResult && (
+                  <details className="lens-paid-evidence">
+                    <summary>View raw paid provider response</summary>
+                    <pre className="lens-paid-evidence-body">
+                      {JSON.stringify(agentExecution.toolResult, null, 2)}
+                    </pre>
+                  </details>
+                )}
+
+                <div className="agent-proof-links">
+                  <a href="/proof">BOUND Proof · verified activity →</a>
+                  {(agentExecution.payment?.explorerUrl ?? agentExecution.explorerUrl) && (
+                    <a href={agentExecution.payment?.explorerUrl ?? agentExecution.explorerUrl ?? undefined}
+                      target="_blank" rel="noreferrer">
+                      View BSC Testnet payment ↗
+                    </a>
+                  )}
+                </div>
+                <details className="lens-paid-evidence">
+                  <summary>Payment receipt · BSC Testnet · chainId 97</summary>
+                  <p>The exact authorized request completed paid execution.</p>
+                  <div className="lens-payment-proof">
+                    <div><span>PAYMENT BROADCAST</span><strong>{agentExecution.audit?.paymentBroadcast ? "YES" : "NO"}</strong></div>
+                    <div><span>PAID TOOL RESULT</span><strong>{agentExecution.toolResult ? "RETURNED" : "MISSING"}</strong></div>
+                  </div>
+                  {(agentExecution.payment?.txHash ?? agentExecution.paymentTxHash) && (
+                    <p>Payment tx <code>{agentExecution.payment?.txHash ?? agentExecution.paymentTxHash}</code></p>
+                  )}
+                </details>
+              </section>
             )}
 
 
@@ -6616,6 +6573,10 @@ function ProofPage() {
               A runtime record of what BOUND analyzed,
               authorized, anchored, allowed, or stopped.
             </p>
+            <p className="hackathon-scope">
+              Hackathon paid flow: BNB Smart Chain Testnet · chainId 97.
+              Lens-only activity may reference other networks; each record identifies its network.
+            </p>
           </div>
 
           <div className="proof-activity-header-meta">
@@ -7233,15 +7194,15 @@ function DocsPage() {
 
             <div className="docs-manual-meta">
               <span>
-                BSC Testnet
+                BNB Smart Chain Testnet
               </span>
 
               <span>
-                Chain 97
+                chainId 97
               </span>
 
               <span>
-                Prototype
+                Hackathon prototype
               </span>
             </div>
           </section>
@@ -7306,8 +7267,8 @@ function DocsPage() {
 
                 <span>
                   The browser wallet signs the EIP-712
-                  authorization and may anchor the intent
-                  on BSC Testnet.
+                  authorization, then anchors the exact intent
+                  on BSC Testnet before paid execution.
                 </span>
               </li>
 
@@ -7319,6 +7280,15 @@ function DocsPage() {
                 <span>
                   Exact intent may continue. Changed intent
                   is stopped before payment.
+                </span>
+              </li>
+              <li>
+                <strong>Agent observes the paid result and answers.</strong>
+                <span>
+                  After exact-request verification and explicit execution confirmation,
+                  the 0.001 TEST_USDT payment invokes the paid tool. Agent observes
+                  its evidence, reasons again, and returns an answer. BOUND Proof
+                  records the verified activity.
                 </span>
               </li>
             </ol>
@@ -7417,6 +7387,12 @@ function DocsPage() {
               and produces grounded facts for downstream
               reasoning.
             </p>
+
+            <div className="docs-manual-note">
+              Lens retains broader EVM network support. The end-to-end paid Agent
+              prototype is demonstrated on BNB Smart Chain Testnet (chainId 97),
+              not across all Lens-supported networks.
+            </div>
 
             <div className="docs-manual-note">
               Lens does not claim that a transaction is
@@ -8011,8 +7987,9 @@ function DocsPage() {
               </li>
 
               <li>
-                The live Guard demo keeps real payment
-                disabled.
+                Paid execution requires exact human authorization, an on-chain
+                intent commitment, and explicit execution confirmation. The
+                demonstrated payment is 0.001 TEST_USDT on BSC Testnet.
               </li>
 
               <li>

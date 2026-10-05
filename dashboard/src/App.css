@@ -1240,8 +1240,9 @@ code {
     height: 26px;
   }
 
-  .nav-links a:nth-child(2) {
-    display: none;
+  .nav-links {
+    gap: .65rem;
+    flex-wrap: wrap;
   }
 
   .hero-copy,
@@ -4789,6 +4790,7 @@ code {
 
 
 .docs-manual-sidebar {
+  min-width: 0;
   position: sticky;
   top: 88px;
   padding: 48px 0;
@@ -5144,7 +5146,7 @@ code {
 
 @media (max-width: 900px) {
   .docs-manual {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0;
   }
 
@@ -5297,4 +5299,158 @@ code {
 
 .lens-agent-console {
   width: 100%;
+}
+
+/* Agent activity leads the workspace; Lens remains the evidence surface. */
+.bound-demo-goal {
+  flex-wrap: wrap;
+}
+
+.agent-run {
+  scroll-margin-top: 90px;
+}
+
+.hackathon-scope {
+  display: block;
+  margin-top: 1rem;
+  font-size: .8rem;
+  line-height: 1.6;
+  color: #c4b7a7;
+}
+
+.agent-proof-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1.2rem;
+}
+
+.agent-perceive summary {
+  cursor: pointer;
+}
+
+.lens-agent-message,
+.lens-agent-review {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.agent-run > .lens-panel-title {
+  flex-wrap: wrap;
+}
+
+.lens-product-heading > div {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lens-hash {
+  overflow-wrap: anywhere;
+}
+
+.lens-main-grid > .lens-agent-console {
+  order: -1;
+  border-color: rgba(203, 112, 66, .55);
+}
+
+.agent-lifecycle-guide,
+.agent-perceive {
+  padding: 1rem;
+  border-left: 2px solid #cb7042;
+  background: rgba(203, 112, 66, .06);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.agent-run {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(232, 221, 206, .2);
+}
+
+.agent-run > p,
+.agent-security-demo p {
+  font-size: .85rem;
+  line-height: 1.6;
+}
+
+.agent-plan-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 1rem;
+  padding: 1.2rem 0;
+}
+
+.agent-plan-summary span,
+.agent-plan-summary strong,
+.agent-plan-summary code {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.agent-plan-summary span {
+  margin-bottom: .5rem;
+  font-size: .65rem;
+  letter-spacing: .1em;
+  color: #cb7042;
+}
+
+.agent-activity {
+  list-style: none;
+  margin: 1rem 0;
+  padding: 0;
+}
+
+.agent-activity li {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1rem;
+  border-left: 2px solid rgba(203, 112, 66, .5);
+  border-bottom: 1px solid rgba(232, 221, 206, .1);
+  overflow-wrap: anywhere;
+}
+
+.agent-activity li[data-phase="PAUSE"] {
+  background: rgba(203, 112, 66, .12);
+  border-left-color: #cb7042;
+}
+
+.agent-activity-phase strong,
+.agent-activity-phase small {
+  display: block;
+}
+
+.agent-activity-phase strong,
+.agent-replan {
+  color: #cb7042;
+  font-size: .8rem;
+}
+
+.agent-activity-phase small {
+  margin-top: .4rem;
+  font-size: .65rem;
+  opacity: .65;
+}
+
+.agent-activity p {
+  margin: 0 0 .4rem;
+  line-height: 1.6;
+}
+
+.agent-security-demo {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid rgba(232, 221, 206, .16);
+}
+
+.agent-security-demo summary {
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .agent-activity li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: .6rem;
+  }
 }
