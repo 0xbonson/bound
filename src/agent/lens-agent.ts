@@ -60,7 +60,7 @@ const modelResultSchema =
           .min(1)
           .max(120)
       )
-        .max(12)
+        .max(32)
         .default([]),
 
     limitationIds:
@@ -70,7 +70,7 @@ const modelResultSchema =
           .min(1)
           .max(120)
       )
-        .max(12)
+        .max(32)
         .default([]),
 
     securityVerdictRequested:
@@ -1024,7 +1024,9 @@ Rules:
 15. Answer in the same language as the user's question unless the user explicitly requests another language.
 16. The user may ask any free-form question about this transaction. Do not require a template or predefined wording.
 17. evidenceIds may contain only IDs from evidenceCatalog.
+17a. Cite only evidence that materially supports the answer. Prefer a compact set, avoid duplicate IDs, and normally use 12 or fewer.
 18. limitationIds may contain only IDs from limitationCatalog.
+18a. Include only limitations that materially affect the answer and avoid duplicate IDs.
 19. Copy blockchain amounts, addresses, hashes, token symbols, network names, protocol names, and function names/signatures exactly as supplied.
 20. Never round, truncate, localize, regroup digits, or insert thousands separators into blockchain numeric values.
 21. Return JSON only.
