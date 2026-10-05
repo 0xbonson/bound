@@ -5189,3 +5189,20 @@ code {
     grid-template-columns: 1fr;
   }
 }
+
+/* Keep long paid evidence inside the Agent/Guard column. */
+.lens-bound-result {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lens-bound-result p,
+.lens-bound-result code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.lens-bound-result code {
+  white-space: pre-wrap;
+}

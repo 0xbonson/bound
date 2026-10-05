@@ -352,6 +352,24 @@ type ExecuteResponse = {
   | null;
 
   retryAutomatically?: boolean;
+
+  finalAgent?: {
+    status: string;
+    answer: string;
+    limitations: string[];
+    observations: unknown[];
+    activity: unknown[];
+    steps: number;
+    maxSteps: number;
+  } | null;
+
+  agentContinuation?: {
+    status:
+      | "COMPLETED"
+      | "FAILED";
+
+    message: string;
+  } | null;
 };
 
 type PublicConfig = {
@@ -3597,6 +3615,129 @@ function HomePage() {
     }
   }
 
+  async function executeInlineRealPayment() {
+    if (
+      !agentRegistryAnchor
+    ) {
+      setAgentError(
+        "Anchor the exact human authorization on BSC Testnet first."
+      );
+
+      return;
+    }
+
+
+    if (
+      !agentAuthorization
+    ) {
+      setAgentError(
+        "Authorize the exact request first."
+      );
+
+      return;
+    }
+
+
+    if (
+      agentScenario !==
+      "normal"
+    ) {
+      setAgentError(
+        "Paid execution is available only for the exact authorized request."
+      );
+
+      return;
+    }
+
+
+    if (
+      agentExecution?.status !==
+        "READY" ||
+      agentExecution
+        .verification
+        ?.decision !==
+        "ALLOW"
+    ) {
+      setAgentError(
+        "Verify the exact request at the payment boundary before executing it."
+      );
+
+      return;
+    }
+
+
+    if (
+      agentExecution
+        .realPaymentEnabled !==
+      true
+    ) {
+      setAgentError(
+        "Real testnet payment execution is disabled on the API server."
+      );
+
+      return;
+    }
+
+
+    setAgentBusy(
+      "execute"
+    );
+
+    setAgentError(
+      null
+    );
+
+
+    try {
+      const result =
+        await apiRequest<
+          ExecuteResponse
+        >(
+          "/api/execute",
+          {
+            method:
+              "POST",
+
+            body: {
+              authorizationId:
+                agentAuthorization
+                  .authorizationId,
+
+              scenario:
+                "normal",
+
+              confirmRealPayment:
+                true,
+            },
+          }
+        );
+
+
+      setAgentExecution(
+        result
+      );
+    } catch (
+      nextError
+    ) {
+      /*
+       * Never encourage an automatic retry here.
+       *
+       * A failed HTTP/UI continuation can happen after the
+       * testnet payment was already broadcast.
+       */
+      setAgentError(
+        `${getErrorMessage(
+          nextError
+        )} Do not retry the payment automatically.`
+      );
+    } finally {
+      setAgentBusy(
+        null
+      );
+    }
+  }
+
+
   const canonicalExplanation =
     inspection
       ?.interpretation
@@ -5447,7 +5588,9 @@ function HomePage() {
                   </strong>
                 </div>
 
-                {inlineWhatChanged && (
+                {inlineWhatChanged &&
+                agentExecution.status !==
+                  "COMPLETED" && (
                   <>
                     <h3>
                       {
@@ -5588,6 +5731,297 @@ function HomePage() {
                 )}
               </div>
             )}
+
+            {agentExecution?.status ===
+              "READY" &&
+            agentExecution
+              .verification
+              ?.decision ===
+              "ALLOW" &&
+            agentScenario ===
+              "normal" &&
+            agentRegistryAnchor &&
+            agentExecution
+              .realPaymentEnabled ===
+              true && (
+              <div className="lens-bound-result allowed">
+                <div className="lens-bound-decision">
+                  <span>
+                    EXECUTION BOUNDARY
+                  </span>
+
+                  <strong>
+                    HUMAN CONFIRMATION
+                  </strong>
+                </div>
+
+                <h3>
+                  Execute the authorized request.
+                </h3>
+
+                <p>
+                  {
+                    agentExecution
+                      .payment
+                      ?.amount ??
+                    "0.001"
+                  } {
+                    agentExecution
+                      .payment
+                      ?.token ??
+                    "TEST_USDT"
+                  } · BSC Testnet.
+                  The payment will invoke the
+                  registered paid tool once.
+                </p>
+
+                <button
+                  className="lens-agent-button"
+                  type="button"
+                  disabled={
+                    agentBusy !==
+                    null
+                  }
+                  onClick={
+                    () => {
+                      void executeInlineRealPayment();
+                    }
+                  }
+                >
+                  <span>
+                    {agentBusy ===
+                    "execute"
+                      ? "Executing authorized request…"
+                      : "Execute authorized request"}
+                  </span>
+
+                  <span>
+                    →
+                  </span>
+                </button>
+              </div>
+            )}
+
+
+            {agentExecution?.status ===
+              "COMPLETED" && (
+              <div className="lens-bound-result allowed">
+                <div className="lens-bound-decision">
+                  <span>
+                    PAID EXECUTION
+                  </span>
+
+                  <strong>
+                    COMPLETED
+                  </strong>
+                </div>
+
+                <h3>
+                  Paid evidence returned.
+                </h3>
+
+                <p>
+                  The exact authorized request was
+                  paid and the protected analysis
+                  tool returned its result.
+                </p>
+
+                <div className="lens-payment-proof">
+                  <div>
+                    <span>
+                      PAYMENT BROADCAST
+                    </span>
+
+                    <strong>
+                      {
+                        agentExecution
+                          .audit
+                          ?.paymentBroadcast
+                          ? "YES"
+                          : "NO"
+                      }
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>
+                      PAID TOOL RESULT
+                    </span>
+
+                    <strong>
+                      {
+                        agentExecution
+                          .toolResult
+                          ? "RETURNED"
+                          : "MISSING"
+                      }
+                    </strong>
+                  </div>
+                </div>
+
+                {(agentExecution
+                  .payment
+                  ?.txHash ||
+                  agentExecution
+                    .paymentTxHash) && (
+                  <p>
+                    Payment tx{" "}
+                    <code>
+                      {
+                        agentExecution
+                          .payment
+                          ?.txHash ??
+                        agentExecution
+                          .paymentTxHash
+                      }
+                    </code>
+                  </p>
+                )}
+
+                {agentExecution
+                  .payment
+                  ?.explorerUrl && (
+                  <p>
+                    <a
+                      href={
+                        agentExecution
+                          .payment
+                          .explorerUrl
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View payment transaction ↗
+                    </a>
+                  </p>
+                )}
+
+                {!agentExecution
+                  .payment
+                  ?.explorerUrl &&
+                agentExecution
+                  .explorerUrl && (
+                  <p>
+                    <a
+                      href={
+                        agentExecution
+                          .explorerUrl
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View payment transaction ↗
+                    </a>
+                  </p>
+                )}
+
+                {agentExecution
+                  .finalAgent ? (
+                  <>
+                    <div className="lens-bound-decision">
+                      <span>
+                        BOUND AGENT
+                      </span>
+
+                      <strong>
+                        {
+                          agentExecution
+                            .finalAgent
+                            .status
+                        }
+                      </strong>
+                    </div>
+
+                    <h3>
+                      Agent final answer
+                    </h3>
+
+                    <p>
+                      {
+                        agentExecution
+                          .finalAgent
+                          .answer
+                      }
+                    </p>
+
+                    {agentExecution
+                      .agentContinuation
+                      ?.message && (
+                      <p>
+                        {
+                          agentExecution
+                            .agentContinuation
+                            .message
+                        }
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p>
+                    {
+                      agentExecution
+                        .agentContinuation
+                        ?.message ??
+                      "The paid execution completed, but no final Agent response was returned."
+                    }
+                  </p>
+                )}
+              </div>
+            )}
+
+
+            {agentExecution &&
+            (
+              agentExecution.status ===
+                "PAYMENT_BROADCAST_BUT_INCOMPLETE" ||
+              agentExecution.status ===
+                "EXECUTION_FAILED_BEFORE_PAYMENT"
+            ) && (
+              <div className="lens-bound-result blocked">
+                <div className="lens-bound-decision">
+                  <span>
+                    EXECUTION STATUS
+                  </span>
+
+                  <strong>
+                    {
+                      agentExecution
+                        .status
+                    }
+                  </strong>
+                </div>
+
+                <p>
+                  {
+                    agentExecution
+                      .message
+                  }
+                </p>
+
+                {agentExecution
+                  .paymentTxHash && (
+                  <p>
+                    Payment tx{" "}
+                    <code>
+                      {
+                        agentExecution
+                          .paymentTxHash
+                      }
+                    </code>
+                  </p>
+                )}
+
+                {agentExecution
+                  .retryAutomatically ===
+                  false && (
+                  <p>
+                    Do not retry this payment
+                    automatically.
+                  </p>
+                )}
+              </div>
+            )}
+
 
             {agentError && (
               <div
