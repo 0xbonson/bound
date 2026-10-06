@@ -1,32 +1,17 @@
-# React + TypeScript + Vite
+# BOUND Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React and TypeScript interface for the BOUND hackathon prototype.
 
-Currently, two official plugins are available:
+See the [root README](../README.md) for product architecture, configuration, local startup, security scope, and BSC Testnet proof.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Routes
 
-## React Compiler
+| Route | Purpose |
+|---|---|
+| `/app` | Agent Workspace: Lens evidence, runtime activity, and guarded paid requests |
+| `/docs` | In-app product manual and API overview |
+| `/proof` | Durable application activity and available execution references |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Proof history depends on the connected Product API and its local activity records. A fresh checkout does not include historical runs.
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+For submission copy and the recording script, see [Hackathon Submission](../docs/HACKATHON_SUBMISSION.md).

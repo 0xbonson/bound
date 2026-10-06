@@ -1,3 +1,5 @@
+> **Historical specification:** This document preserves BOUND’s original v0.1 design and illustrative examples. For the current Agent workflow, BSC Testnet scope, setup, and verified submission evidence, see [README.md](README.md).
+
 # BOUND v0.1
 
 ## Thesis

@@ -7829,7 +7829,7 @@ function DocsPage() {
                 </span>
 
                 <strong>
-                  Create or replace active intent
+                  Create a new intent commitment using an unused intent ID for the caller; existing IDs cannot be reused, even after revocation.
                 </strong>
               </div>
 
