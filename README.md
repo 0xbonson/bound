@@ -225,8 +225,6 @@ At product checkpoint `1ca8122`, the project reported a passing dashboard build,
 
 A fresh checkout does not contain the original local history. Starting the application will not recreate historical proof records or historical Agent answers.
 
-For recording instructions, see [`docs/HACKATHON_SUBMISSION.md`](docs/HACKATHON_SUBMISSION.md).
-
 ## Limitations
 
 - One guarded paid capability: transaction analysis on BSC Testnet.
